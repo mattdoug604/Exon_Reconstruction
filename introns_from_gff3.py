@@ -92,7 +92,6 @@ def get_introns(args, min_count=2, strand_only=True):
     site_dict = defaultdict(list)
 
     intron_dict = parse_gff3(gff_path, region)
-    pprint('  Found support for {:,} introns'.format(len(intron_dict)))
 
     # discard any introns not meeting filtering criteria
     m, n = 0, 0
@@ -148,8 +147,8 @@ def get_introns(args, min_count=2, strand_only=True):
             site_dict[(chrom, right, strand)] = [intron]
     pprint('\rIndexing splice sites... Done!', level='debug')
 
-    pprint('Reporting {:,} introns:'.format(f_count + r_count))
-    pprint('  {:,} on the + strand'.format(f_count))
-    pprint('  {:,} on the - strand'.format(r_count))
+    pprint('  Found {:,} introns:'.format(f_count + r_count))
+    pprint('    {:,} on the + strand'.format(f_count))
+    pprint('    {:,} on the - strand'.format(r_count))
 
     return intron_dict, splice_f, splice_r, site_dict

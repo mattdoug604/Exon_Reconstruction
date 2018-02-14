@@ -25,10 +25,8 @@ import argparse, re, sys
 import pysam
 from main import parse_arguments
 from parse_exon_index import parse_index
-from get_introns_from_gff3 import get_introns
+from introns_from_gff3 import get_introns
 import intron_retention
-
-print('### WORK IN PROGRESS ###\n')
 
 #####################
 # Class definitions #
@@ -63,18 +61,6 @@ def pprint(*args, **kwargs):
     else:
         if not QUIET:
             print(*args, **kwargs)
-
-
-def fr(region):
-    """Return a tuple of (chromosome, start position, end position, strand) in
-    a more readable format.
-    """
-    if len(region) < 4:
-        strand = ''
-    else:
-        strand = ' ({} strand)'.format(region[3])
-
-    return '{}:{:,}-{:,}{}'.format(region[0], region[1], region[2], strand)
 
 
 def percent(count, total):
@@ -118,7 +104,7 @@ def shift_frame(adj_frame, intron, direction):
     pprint('    Calculating frame shift:', level='debug')
     pprint('      Direction is {}'.format(direction), level='debug')
     pprint('      Adjacent exon is in frame {}'.format(adj_frame), level='debug')
-    pprint('      Intron {} is {}bp long, modulo is {}'.format(fr(intron), intron_len, modulo), level='debug')
+    pprint('      Intron {} is {}bp long, modulo is {}'.format(intron, intron_len, modulo), level='debug')
     pprint('      New frame is {}'.format(new_frame), level='debug')
 
     return new_frame
@@ -263,6 +249,9 @@ def get_translation_blocks(index_f, index_r):
                     last = pos
                     block = TranslationBlock()
 
+    pprint('\rIdentifying all translation blocks... Done!    ')
+    pprint('  {:,} translation blocks total'.format(num_blks))
+
     # DEBUG: output all the translation blocks
     temp_f = merge_dicts(blocks_f, empty_blocks_f)
     temp_r = merge_dicts(blocks_r, empty_blocks_r)
@@ -275,9 +264,6 @@ def get_translation_blocks(index_f, index_r):
             blocks = sort_by_pos(blocks)
             out_path = '{}.t_blocks.{}{}.gff3'.format(PREFIX, suf, frame)
             print_as_gff3(blocks, out_path, kind='block')
-
-    pprint('\rIdentifying all translation blocks... Done!    ')
-    pprint('  {:,} translation blocks total'.format(num_blks))
 
     return blocks_f, blocks_r
 
@@ -334,7 +320,7 @@ def get_putative_exons(blocks_f, blocks_r):
                         exon = chrom, i, j-1, '+'
                         exon_internal.add(exon)
                         FRAME[exon].add(frame)
-                        pprint('    internal exon found at {}'.format(fr(exon)), level='debug')
+                        pprint('    internal exon found at {}'.format(exon), level='debug')
                 # join start codons to 5' splice sites
                 for s in s_sites:
                     x = [r for r in r_sites if r > s]
@@ -344,7 +330,7 @@ def get_putative_exons(blocks_f, blocks_r):
                         exon_l_term_dict[r_adj].add(exon)
                         FRAME[exon].add(frame)
                         five_term_c += 1
-                        pprint("    5' terminal exon found at {}".format(fr(exon)), level='debug')
+                        pprint("    5' terminal exon found at {}".format(exon), level='debug')
                 # join 3' splice sites to stop codons
                 for l in [s for s in l_sites if s < block.end]:
                     exon = chrom, l, block.end, '+'
@@ -352,7 +338,7 @@ def get_putative_exons(blocks_f, blocks_r):
                     exon_r_term_dict[l_adj].add(exon)
                     FRAME[exon].add(frame)
                     three_term_c += 1
-                    pprint("    3' terminal exon found at {}".format(fr(exon)), level='debug')
+                    pprint("    3' terminal exon found at {}".format(exon), level='debug')
     ############################################################################
     # scan the - strand of the genome
     for chrom, frames in blocks_r.items():
@@ -378,7 +364,7 @@ def get_putative_exons(blocks_f, blocks_r):
                         exon = chrom, i+1, j, '-'
                         exon_internal.add(exon)
                         FRAME[exon].add(frame)
-                        pprint('    internal exon found at {}'.format(fr(exon)), level='debug')
+                        pprint('    internal exon found at {}'.format(exon), level='debug')
                 # join stop codon to 3' splice sites
                 for r in [s for s in r_sites if s > block.start]:
                     exon = chrom, block.start, r, '-'
@@ -386,7 +372,7 @@ def get_putative_exons(blocks_f, blocks_r):
                     exon_l_term_dict[r_adj].add(exon)
                     FRAME[exon].add(frame)
                     three_term_c += 1
-                    pprint("    5' terminal exon found at {}".format(fr(exon)), level='debug')
+                    pprint("    5' terminal exon found at {}".format(exon), level='debug')
                 # join 5' splice sites to start codons
                 for l in l_sites:
                     x = [s for s in s_sites if s > l]
@@ -396,7 +382,7 @@ def get_putative_exons(blocks_f, blocks_r):
                         exon_r_term_dict[l_adj].add(exon)
                         FRAME[exon].add(frame)
                         five_term_c += 1
-                        pprint("    3' terminal exon found at {}".format(fr(exon)), level='debug')
+                        pprint("    3' terminal exon found at {}".format(exon), level='debug')
 
     pprint('\rIdentifying putative exon positions... Done!    ')
     pprint("  {:,} putative internal exons".format(len(exon_internal)))
@@ -414,10 +400,10 @@ def check_adjacency(exon_list):
         r_adj = chrom, right + 1, strand
         for intron in SITE[l_adj]:
             ADJ[intron][1].add(exon)
-            pprint('  exon is right of intron {}'.format(fr(intron)), level='debug')
+            pprint('  exon is right of intron {}'.format(intron), level='debug')
         for intron in SITE[r_adj]:
             ADJ[intron][0].add(exon)
-            pprint('  exon is left of intron {}'.format(fr(intron)), level='debug')
+            pprint('  exon is left of intron {}'.format(intron), level='debug')
     pprint('Building adjacency dict... Done!', level='debug')
 
 
@@ -425,6 +411,7 @@ def resolve_internal_frames(exon_internal, max_iterations=20):
     unresolved = []
     count = 0
     total = len(exon_internal)
+    total_change = 0
 
     pprint('', level='debug')
     pprint('Identifying the correct phase for internal exons', end='')
@@ -435,29 +422,29 @@ def resolve_internal_frames(exon_internal, max_iterations=20):
         num_change = 0
         for exon in exon_internal:
             if len(FRAME[exon]) > 1:
-                pprint('Iteration {}) Block {} has more than one frame ({}), skipping'.format(n+1, fr(exon), FRAME[exon]), level='debug')
+                pprint('Iteration {}) Block {} has more than one frame ({}), skipping'.format(n+1, exon, FRAME[exon]), level='debug')
                 continue
             chrom, left, right, strand = exon
             (frame,) = FRAME[exon]
             upstream_introns = SITE[(chrom, left-1, strand)]
             downstream_introns = SITE[(chrom, right+1, strand)]
-            pprint('Iteration {}) Using exon {} (frame {}) to resolve adjacent reading frames'.format(n+1, fr(exon), frame), level='debug')
+            pprint('Iteration {}) Using exon {} (frame {}) to resolve adjacent reading frames'.format(n+1, exon, frame), level='debug')
             ####################################################################
             for intron in upstream_introns:
-                pprint('  Looking for exons adjacent to upstream intron {}...'.format(fr(intron)), level='debug')
+                pprint('  Looking for exons adjacent to upstream intron {}...'.format(intron), level='debug')
                 for adj_exon in ADJ[intron][0]:
                     adj_frames = FRAME[adj_exon]
                     if len(adj_frames) != 1:
-                        pprint('  Determining frame for exon {}, frames: {}'.format(fr(adj_exon), adj_frames), level='debug')
+                        pprint('  Determining frame for exon {}, frames: {}'.format(adj_exon, adj_frames), level='debug')
                         new_frame = shift_frame(frame, intron, strand+'<')
                         new_FRAME[adj_exon].add(new_frame)
             ####################################################################
             for intron in downstream_introns:
-                pprint('  Looking for exons adjacent to downstream intron {}...'.format(fr(intron)), level='debug')
+                pprint('  Looking for exons adjacent to downstream intron {}...'.format(intron), level='debug')
                 for adj_exon in ADJ[intron][1]:
                     adj_frames = FRAME[adj_exon]
                     if len(adj_frames) != 1:
-                        pprint('  Determining frame for exon {}, frames {}:'.format(fr(adj_exon), adj_frames), level='debug')
+                        pprint('  Determining frame for exon {}, frames {}:'.format(adj_exon, adj_frames), level='debug')
                         new_frame = shift_frame(frame, intron, strand+'>')
                         new_FRAME[adj_exon].add(new_frame)
 
@@ -469,6 +456,7 @@ def resolve_internal_frames(exon_internal, max_iterations=20):
                 pprint('  Block {} frames {} => {}'.format(exon, old_frames, new_frames), level='debug')
                 FRAME[exon] = new_frames
                 num_change += 1
+        total_change += num_change
         if num_change < 1:
             pprint('  None. Stopping at iteration {}'.format(n+1), level='debug')
             break
@@ -478,16 +466,15 @@ def resolve_internal_frames(exon_internal, max_iterations=20):
     for exon, frames in FRAME.items():
         if len(frames) > 1:
             unresolved.append(exon)
-            pprint('  {}, frames: {}'.format(fr(exon), frames), level='debug')
+            pprint('  {}, frames: {}'.format(exon, frames), level='debug')
+
+    pprint('\rIdentifying the correct phase for internal exons... Done!')
+    pprint('  Resolved {:,} cases where an internal exons had >1 possible phase'.format(total_change))
+    pprint('  The phase of {:,} ({}) internal exons could not be determined'.format(len(unresolved), percent(len(unresolved), len(exon_internal))))
 
     # DEBUG: Output internal exons with ambiguous frame
     unresolved = sort_by_pos(unresolved)
     print_as_gff3(unresolved, PREFIX + '.internal.multi_frame.gff3')
-
-    pprint('\rIdentifying the correct phase for internal exons... Done!')
-    pprint('  Resolved {:,} cases where an internal exons had >1 possible phase'.format(num_change))
-    pprint('  The phase of {:,} ({}) internal exons could not be determined'
-           .format(len(unresolved), percent(len(unresolved), len(exon_internal))))
 
 
 def trim_false_internal_exons(exon_internal, exon_l_term_dict, exon_r_term_dict, max_iterations=3):
@@ -501,7 +488,7 @@ def trim_false_internal_exons(exon_internal, exon_l_term_dict, exon_r_term_dict,
         pprint('\nStarting iteration {}:'.format(n+1), level='debug')
         to_remove_exons = set()
         for exon in exon_internal:
-            pprint('Checking internal exon {}, frame(s) {}...'.format(fr(exon), FRAME[exon]), level='debug')
+            pprint('Checking internal exon {}, frame(s) {}...'.format(exon, FRAME[exon]), level='debug')
             chrom, start, end, strand = exon
             upstream_introns = SITE[(chrom, start-1, strand)]
             downstream_introns = SITE[(chrom, end+1, strand)]
@@ -509,35 +496,35 @@ def trim_false_internal_exons(exon_internal, exon_l_term_dict, exon_r_term_dict,
             validate_r = False
             ####################################################################
             for intron in upstream_introns:
-                pprint('  Looking for exons adjacent to upstream intron {}...'.format(fr(intron)), level='debug')
+                pprint('  Looking for exons adjacent to upstream intron {}...'.format(intron), level='debug')
                 adj_internal_exons = ADJ[intron][0]
                 adj_term_exons = exon_l_term_dict[intron[0], intron[1]-1, intron[3]]
                 expect_frames = set([shift_frame(f, intron, strand+'<') for f in FRAME[exon]])
                 pprint('    Expected frames =', expect_frames, level='debug')
                 for adj_exon in adj_internal_exons:
                     if expect_frames & FRAME[adj_exon]:
-                        pprint('    Internal exon {} is in frame (expect: {}, found: {})'.format(fr(adj_exon), expect_frames, FRAME[adj_exon]), level='debug')
+                        pprint('    Internal exon {} is in frame (expect: {}, found: {})'.format(adj_exon, expect_frames, FRAME[adj_exon]), level='debug')
                         validate_l = True
                         continue
                 for adj_exon in adj_term_exons:
                     if expect_frames & FRAME[adj_exon]:
-                        pprint('    Terminal exon {} is upstream, frame(s) {}'.format(fr(adj_exon), FRAME[adj_exon]), level='debug')
+                        pprint('    Terminal exon {} is upstream, frame(s) {}'.format(adj_exon, FRAME[adj_exon]), level='debug')
                         validate_l = True
                         continue
             ####################################################################
             for intron in downstream_introns:
-                pprint('  Looking for exons adjacent to downstream intron {}...'.format(fr(intron)), level='debug')
+                pprint('  Looking for exons adjacent to downstream intron {}...'.format(intron), level='debug')
                 adj_internal_exons = ADJ[intron][1]
                 adj_term_exons = exon_r_term_dict[intron[0], intron[2]+1, intron[3]]
                 expect_frames = set([shift_frame(f, intron, strand+'>') for f in FRAME[exon]])
                 for adj_exon in adj_internal_exons:
                     if expect_frames & FRAME[adj_exon]:
-                        pprint('    Internal exon {} is in frame (expect: {}, found: {})'.format(fr(adj_exon), expect_frames, FRAME[adj_exon]), level='debug')
+                        pprint('    Internal exon {} is in frame (expect: {}, found: {})'.format(adj_exon, expect_frames, FRAME[adj_exon]), level='debug')
                         validate_r = True
                         continue
                 for adj_exon in adj_term_exons:
                     if expect_frames & FRAME[adj_exon]:
-                        pprint('    Terminal exon {} is downstream, frame(s) {}'.format(fr(adj_exon), FRAME[adj_exon]), level='debug')
+                        pprint('    Terminal exon {} is downstream, frame(s) {}'.format(adj_exon, FRAME[adj_exon]), level='debug')
                         validate_r = True
                         continue
             ####################################################################
@@ -555,7 +542,7 @@ def trim_false_internal_exons(exon_internal, exon_l_term_dict, exon_r_term_dict,
                 for i in upstream_introns:
                     utr_introns.add(i)
             for intron in upstream_introns:
-                pprint('    Removing exon from ADJ of intron {} (right)'.format(fr(intron)), level='debug')
+                pprint('    Removing exon from ADJ of intron {} (right)'.format(intron), level='debug')
                 pprint('     ', ADJ[intron], level='debug')
                 try:
                     ADJ[intron][1].remove(exon)
@@ -563,7 +550,7 @@ def trim_false_internal_exons(exon_internal, exon_l_term_dict, exon_r_term_dict,
                     pass
                 pprint('     ', ADJ[intron], level='debug')
             for intron in downstream_introns: # remove the exons from the adjaceny dict
-                pprint('    Removing exon from ADJ of intron {} (left)'.format(fr(intron)), level='debug')
+                pprint('    Removing exon from ADJ of intron {} (left)'.format(intron), level='debug')
                 pprint('     ', ADJ[intron], level='debug')
                 try:
                     ADJ[intron][0].remove(exon)
@@ -618,7 +605,7 @@ def terminal_exons_in_phase(exon_l_term_dict, exon_r_term_dict, utr_introns):
         ########################################################################
         # if no internal exons on both sides of the intron...
         if len(l_adj) < 1 and len(r_adj) < 1:
-            pprint('Looking on both sides of intron at {}'.format(fr(intron)), level='debug')
+            pprint('Looking on both sides of intron at {}'.format(intron), level='debug')
             results = []
             l_compare = {}
             r_compare = {}
@@ -638,10 +625,10 @@ def terminal_exons_in_phase(exon_l_term_dict, exon_r_term_dict, utr_introns):
                     r_compare[f].add(exon)
             pprint('  Left side:', level='debug')
             for frame, exons in l_compare.items():
-                pprint('    Frame {}) {}'.format(frame, ' '.join([fr(i) for i in exons])), level='debug')
+                pprint('    Frame {}) {}'.format(frame, ' '.join([str(i) for i in exons])), level='debug')
             pprint('  Right side:', level='debug')
             for frame, exons in r_compare.items():
-                pprint('    Frame {}) {}'.format(frame, ' '.join([fr(i) for i in exons])), level='debug')
+                pprint('    Frame {}) {}'.format(frame, ' '.join([str(i) for i in exons])), level='debug')
             # check which exons are in frame with each other
             # check if they are a valid ORF (i.e. modulo 3 == 0)
             for f, l_set in l_compare.items():
@@ -665,8 +652,8 @@ def terminal_exons_in_phase(exon_l_term_dict, exon_r_term_dict, utr_introns):
                 # add exons to the adjacency dictionary
                 new_ADJ[intron][0].add(final[0])
                 new_ADJ[intron][1].add(final[1])
-                pprint('      {} is left of intron {}'.format(fr(final[0]), fr(intron)), level='debug')
-                pprint('      {} is right of intron {}'.format(fr(final[1]), fr(intron)), level='debug')
+                pprint('      {} is left of intron {}'.format(final[0], intron), level='debug')
+                pprint('      {} is right of intron {}'.format(final[1], intron), level='debug')
                 # DEBUG: print out any single-intron genes
                 single_intron.append(final[0])
                 single_intron.append(final[1])
@@ -675,7 +662,7 @@ def terminal_exons_in_phase(exon_l_term_dict, exon_r_term_dict, utr_introns):
         ########################################################################
         # if no internal exon is upstream of the intron...
         elif len(l_adj) < 1:
-            pprint('Looking upstream of intron at {}'.format(fr(intron)), level='debug')
+            pprint('Looking upstream of intron at {}'.format(intron), level='debug')
             l_compare = {}
             expected = set()
             # determine what the expected frame(s) should be based on adjacent
@@ -696,11 +683,11 @@ def terminal_exons_in_phase(exon_l_term_dict, exon_r_term_dict, utr_introns):
                 if f in l_compare:
                     match = max(l_compare[f], key=length)
                     new_l_term.add(match)
-                    pprint('  Blocks {} with frame {} match'.format(', '.join([fr(i) for i in l_compare[f]]), f), level='debug')
-                    pprint('  Longest is {}'.format(fr(match)), level='debug')
+                    pprint('  Blocks {} with frame {} match'.format(', '.join([str(i) for i in l_compare[f]]), f), level='debug')
+                    pprint('  Longest is {}'.format(match), level='debug')
                     # add exons to the adjacency dictionary
                     new_ADJ[intron][0].add(match)
-                    pprint('    {} is left of intron {}'.format(fr(match), fr(intron)), level='debug')
+                    pprint('    {} is left of intron {}'.format(match, intron), level='debug')
                     # count 5' and 3' terminal exons
                     if strand == '+':
                         five_term_c += 1
@@ -709,7 +696,7 @@ def terminal_exons_in_phase(exon_l_term_dict, exon_r_term_dict, utr_introns):
         ########################################################################
         # if no internal exon is downstream of the intron...
         elif len(r_adj) < 1:
-            pprint('Looking downstream of intron at {}'.format(fr(intron)), level='debug')
+            pprint('Looking downstream of intron at {}'.format(intron), level='debug')
             r_compare = {}
             expected = set()
             # determine what the expected frame(s) should be based on adjacent
@@ -729,11 +716,11 @@ def terminal_exons_in_phase(exon_l_term_dict, exon_r_term_dict, utr_introns):
                 if f in r_compare:
                     match = max(r_compare[f], key=length)
                     new_r_term.add(match)
-                    pprint('  Blocks {} with frame {} match'.format(', '.join([fr(i) for i in r_compare[f]]), f), level='debug')
-                    pprint('  Longest is {}'.format(fr(match)), level='debug')
+                    pprint('  Blocks {} with frame {} match'.format(', '.join([str(i) for i in r_compare[f]]), f), level='debug')
+                    pprint('  Longest is {}'.format(match), level='debug')
                     # add exons to the adjacency dictionary
                     new_ADJ[intron][1].add(match)
-                    pprint('    {} is right of intron {}'.format(fr(match), fr(intron)), level='debug')
+                    pprint('    {} is right of intron {}'.format(match, intron), level='debug')
                     # count 5' and 3' terminal exons
                     if strand == '+':
                         three_term_c += 1
@@ -742,7 +729,7 @@ def terminal_exons_in_phase(exon_l_term_dict, exon_r_term_dict, utr_introns):
         ########################################################################
         # otherwise, continue...
         else:
-            pprint('Skipping intron at {}, is flanked by exons'.format(fr(intron)), level='debug')
+            pprint('Skipping intron at {}, is flanked by exons'.format(intron), level='debug')
             continue
 
     # update the adjacency dictionary
@@ -822,8 +809,10 @@ def define_gene_ends(features):
                     d[chrom][n].append((left, 2))
                     d[chrom][n].append((right, 3))
 
-    # for DEBUGging: report gene boundaries
-    if DEBUG:
+    pprint('\rDefining putative gene boundaries... Done!')
+    pprint('  {:,} multi-exon genes found'.format( sum([len(i) for i in temp2.values()])))
+
+    if DEBUG: # report gene boundaries
         for d, s in ((ends_f, '+'), (ends_r, '-')):
             for chrom, frames in d.items():
                 for pos, kind in frames[0]:
@@ -835,9 +824,6 @@ def define_gene_ends(features):
     # DEBUG: Print out putative gene boundaries
     genes = sort_by_pos(genes)
     print_as_gff3(genes, PREFIX + '.gene_boundaries.gff3', kind='gene')
-
-    pprint('\rDefining putative gene boundaries... Done!')
-    pprint('  {:,} multi-exon genes found'.format( sum([len(i) for i in temp2.values()])))
 
     return ends_f, ends_r, genes
 
@@ -864,7 +850,7 @@ def get_single_exons(index_f, index_r):
                     if intergenic is True:
                         track_list.append((pos, 0))
                 # When a stop codon is reached...
-                elif kind == 1:
+                elif kind == 3:
                     if len(track_list) > 0:
                         for t, x in track_list:
                             # if we're tracking from a start codon...
@@ -872,15 +858,15 @@ def get_single_exons(index_f, index_r):
                                 exon = chrom, t, pos-1, '+'
                                 exon_single.add(exon)
                                 FRAME[exon].add(frame)
-                                pprint('  single-exon exon found at {}'.format(fr(exon)), level='debug')
+                                pprint('  single-exon exon found at {}'.format(exon), level='debug')
                     # reset
                     track_list = []
                 # When a left splice site is reached...
-                elif kind == 2:
+                elif kind == 1:
                     track_list = []
                     intergenic = False
                 # When a right splice site is reached...
-                elif kind == 3:
+                elif kind == 2:
                     track_list = []
                     intergenic = True
 
@@ -901,17 +887,17 @@ def get_single_exons(index_f, index_r):
                             exon = chrom, t, pos, '-'
                             exon_single.add(exon)
                             FRAME[exon].add(frame)
-                            pprint('  single-exon exon found at {}'.format(fr(exon)), level='debug')
+                            pprint('  single-exon exon found at {}'.format(exon), level='debug')
                 # When a stop codon is reached...
-                elif kind == 1:
+                elif kind == 3:
                     if intergenic:
                         track_list = [ (pos, 0) ]
                 # When a left splice site is reached...
-                elif kind == 2:
+                elif kind == 1:
                     track_list = []
                     intergenic = False
                 # When a right splice site is reached...
-                elif kind == 3:
+                elif kind == 2:
                     track_list = []
                     intergenic = True
 
@@ -988,7 +974,7 @@ if __name__ == '__main__':
     print_as_gff3(exon_internal, PREFIX + '.internal.gff3')
     print_as_gff3(exon_five_term, PREFIX + '.five_term.gff3')
     print_as_gff3(exon_three_term, PREFIX + '.three_term.gff3')
-    print_as_gff3(exon_single, PREFIX + '.single.gff3', NOTE)
+    print_as_gff3(exon_single, PREFIX + '.single.gff3')
     exon_all = sort_by_pos(exon_internal + exon_five_term + exon_three_term)
     print_as_gff3(exon_all, PREFIX + '.final.gff3')
     pprint('\rOutputting results... Done!')

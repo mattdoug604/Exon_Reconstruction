@@ -47,7 +47,7 @@ def parse_arguments():
     args = parser.parse_args()
 
     # the required parameters are the index and the aligned reads
-    if not args.index or not args.introns:
+    if not args.index or not args.introns or not args.bam:
         parser.print_help()
         exit(1)
 
@@ -65,6 +65,7 @@ def parse_arguments():
     if not args.quiet:
         print('Index prefix  =', args.index)
         print('Intron file   =', args.introns)
+        print('Aligned reads =', args.bam)
         print('Output prefix =', args.prefix)
         print('Search region =', region_str)
         print('')
