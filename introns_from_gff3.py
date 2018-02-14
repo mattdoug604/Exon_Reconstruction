@@ -1,12 +1,10 @@
 #!/home2/mattdoug/python3/bin/python3
-# Last updated: 5/2/2018
+# Last updated: 14/2/2018
 # Author: Matt Douglas
-# Purpose: Read through a BAM file and generate a GFF3 file of all the
-#          supported introns. Alternatively, supply a GFF3 file of introns and
-#          count read support for each one.
+# Purpose: Get the coordinates of each intron from a GFF3 file, and index the
+# positions of each individual splice site.
 
-from __future__ import print_function
-import argparse, sys
+import sys
 import pysam
 from collections import defaultdict
 
@@ -23,7 +21,7 @@ def pprint(*args, **kwargs):
 def parse_gff3(path, region=None):
     intron_dict = defaultdict(int)
 
-    pprint('Parsing specified intron file...', end='')
+    pprint('Getting intron coordinates...', end='')
     with open(path, 'r') as f:
         for line in f:
             if not line or line.startswith('#'):
@@ -39,7 +37,7 @@ def parse_gff3(path, region=None):
                     intron_dict[intron] = count
             else:
                 intron_dict[intron] = count
-    pprint('\rParsing specified intron file... Done!')
+    pprint('\rGetting intron coordinates... Done!')
 
     return intron_dict
 
@@ -79,7 +77,7 @@ def sort_features(features):
     return sorted(features, key=lambda x: (x[0], int(x[1]), int(x[2])))
 
 
-def get_introns(args, min_count=1, strand_only=True):
+def get_introns(args, min_count=2, strand_only=True):
     global QUIET
     global DEBUG
     QUIET = args.quiet
@@ -155,61 +153,3 @@ def get_introns(args, min_count=1, strand_only=True):
     pprint('  {:,} on the - strand'.format(r_count))
 
     return intron_dict, splice_f, splice_r, site_dict
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-                        description='Extract introns from a BAM file.')
-    parser.add_argument('-a',
-                        dest='bam',
-                        type=str,
-                        nargs='?',
-                        help='path to the aligned reads (BAM file)')
-    parser.add_argument('-i',
-                        dest='introns',
-                        type=str,
-                        nargs='?',
-                        help='(optional) limit search to introns in a GFF3 file')
-    parser.add_argument('-r',
-                        dest='region',
-                        type=str,
-                        nargs='?',
-                        help='limit search to genomic coordinates (e.g. I:1000-2000)')
-    parser.add_argument('-m',
-                        type=int,
-                        dest='min_count',
-                        nargs='?',
-                        default=0,
-                        help='minimum required read support (default=0)')
-    parser.add_argument('-s',
-                        '--strand-only',
-                        dest='strand_only',
-                        action='store_true',
-                        help='discard any introns without a defined strand')
-    parser.add_argument('-p',
-                        dest='prefix',
-                        type=str,
-                        nargs='?',
-                        default='exons', help='prefix for the output file')
-    parser.add_argument('-q',
-                        dest='quiet',
-                        action='store_true',
-                        default=False,
-                        help='do not pprint any progress information')
-
-    args = parser.parse_args()
-    if not args.bam:
-        parser.pprint_help()
-        sys.exit(1)
-
-    # convert a string (e.g. "I:1000..2000") to a tuple
-    if args.region is not None:
-        temp = args.region.strip().replace(',', '').replace('..', '-')
-        temp = re.split(':|-|_', temp)
-        chrom, start, end = temp[0], int(temp[1]), int(temp[2])
-        args.region = chrom, start, end
-
-    introns = get_introns(args.introns,
-                          args.region,
-                          args.min_count,
-                          args.strand_only)[0]

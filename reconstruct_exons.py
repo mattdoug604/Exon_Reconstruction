@@ -1,17 +1,15 @@
 #!/home2/mattdoug/python3/bin/python3
 # Author: Matt Douglas
-# Last updated: 2/6/2018
+# Last updated: 14/2/2018
 
-# PURPOSE: Use the translation blocks encoded in the genome and splice sites
-#          identified from RNA-Seq data to reconstruct protein-coding exons.
-# USAGE: reconstruct_exons.py [-q] [-d] [-p exons] [-l I:100..200] -x <PREFIX of index files> -i <path to introns>
+# PURPOSE: Reconstruct protein-coding exons from a reference genome and RNA-seq
+# data.
 
 # UPDATES TO THIS VERSION:
-# Changed the script to take a list of known intron retention events and use
-# those to reconstruct exons. Intron retention events can be detected using
-# iREAD (Hong-Dong et al. 2017)
+# Added in filtering criteria for intron retention events. An event must have
+# RNA-Seq coverage along >80% of the intron to be counted.
 
-# NOTES:
+# MY NOTES:
 # I:217,489..219,488 - example of resolved 2-exon gene
 # X:2,412,849..2,413,848 - example of incorrect 2-exon gene
 # III:3,562,617..3,582,616 - PacBio reads support alt intron w/ 2 support
@@ -25,6 +23,12 @@ from collections import defaultdict
 from itertools import chain, product
 import argparse, re, sys
 import pysam
+from main import parse_arguments
+from parse_exon_index import parse_index
+from get_introns_from_gff3 import get_introns
+import intron_retention
+
+print('### WORK IN PROGRESS ###\n')
 
 #####################
 # Class definitions #
@@ -33,7 +37,7 @@ class TranslationBlock(object):
     __slots__ = ['start', 'end', 'l_sites', 'r_sites', 's_sites']
     def __init__(self):
         self.start = -1
-        self.end   = -1
+        self.end = -1
         self.l_sites = [] # 5' splice sites
         self.r_sites = [] # 3' splice sites
         self.s_sites = [] # start codons
@@ -402,54 +406,7 @@ def get_putative_exons(blocks_f, blocks_r):
     return exon_internal, exon_l_term_dict, exon_r_term_dict
 
 
-def intron_retention_events(ret_introns, introns, all_exons):
-    temp_ret_introns = defaultdict(list)
-    temp_introns = defaultdict(list)
-    temp_exons = defaultdict(list)
-    discard = set()
-
-    pprint('Filtering intron retention events...', end='')
-
-    for i in ret_introns:
-        chrom, start, end, strand = i
-        temp_ret_introns[(chrom, strand)].append((start, end))
-    for i in introns:
-        chrom, start, end, strand = i
-        temp_introns[(chrom, strand)].append((start, end))
-    for i in all_exons:
-        chrom, start, end, strand = i
-        temp_exons[(chrom, strand)].append((start, end))
-
-    for region, exons in temp_exons.items():
-        exons = sorted(exons, key=lambda x: (x[0], x[1]))
-        ret_i = sorted(temp_ret_introns[region], key=lambda x: (x[0], x[1]))
-        not_i = sorted(temp_introns[region], key=lambda x: (x[0], x[1]))
-        for e in exons:
-            overlaps = False
-            keep = False
-            for i in not_i:
-                if i[1] < e[0] + 1000: # if gone past the intron, goto next exon
-                    break
-                if e[0] < i[0] and i[1] < e[1]:
-                    overlaps = True
-                    if i in ret_i:
-                        keep = True
-            if overlaps and not keep:
-                discard.add((region[0], e[0], e[1], region[1]))
-
-    exons = all_exons - discard
-
-    pprint('\rFiltering intron retention events... Done!')
-    pprint('  Removed {:,} exons'.format(len(discard)))
-
-    # DEBUG:
-    for i in discard:
-        print('   ', fr(i))
-
-    return exons
-
-
-def build_adj_dict(exon_list):
+def check_adjacency(exon_list):
     pprint('Building adjacency dict...', level='debug')
     for exon in exon_list:
         chrom, left, right, strand = exon
@@ -967,25 +924,25 @@ def get_single_exons(index_f, index_r):
 ############
 # Run loop #
 ############
-def reconstruct_exons(index_f, index_r, introns, ret_introns, splice_f, splice_r, sd, args):
-    global QUIET
-    global DEBUG
-    global PREFIX
-    global ADJ
-    global FRAME
-    global NOTE
-    global SITE
+if __name__ == '__main__':
+    args = parse_arguments()
+
     QUIET = args.quiet
     DEBUG = args.debug
     PREFIX = args.prefix
-    ADJ = {i:[set(), set()] for i in introns}
     FRAME = defaultdict(set)
     NOTE = defaultdict(set)
-    SITE = sd
-
-    ret_introns = [('II', 8053919, 8053975, '+')]
 
     pprint('Starting exon reconstruction', level='debug')
+
+    # Parse the index files (positions of start and stop codons) #
+    ##############################################################
+    index_f, index_r = parse_index(args)
+
+    # Get the positions of all the introns #
+    ########################################
+    introns, splice_f, splice_r, SITE = get_introns(args)
+    ADJ = {i:[set(), set()] for i in introns}
 
     # Get all translation blocks #
     ##############################
@@ -998,11 +955,11 @@ def reconstruct_exons(index_f, index_r, introns, ret_introns, splice_f, splice_r
     # Get all putative internal and terminal positions #
     ####################################################
     exon_internal, exon_l_term_dict, exon_r_term_dict = get_putative_exons(blocks_f, blocks_r)
-    exon_internal = intron_retention_events(ret_introns, introns, exon_internal) # TODO
+    exon_internal, _ = intron_retention.filter(args, introns, exon_internal)
 
     # Try and resolve ambiguous phase for internal exons #
     ######################################################
-    build_adj_dict(exon_internal)
+    check_adjacency(exon_internal)
     resolve_internal_frames(exon_internal)
 
     # Check which terminal exons are in frame #
