@@ -56,7 +56,7 @@ def pprint(*args, **kwargs):
         if DEBUG:
             print(*args, **kwargs)
     elif level == 'progress':
-        if not QUIET and not DEBUG:
+        if not QUIET and not NOPROG:
             print(*args, **kwargs)
     else:
         if not QUIET:
@@ -914,6 +914,7 @@ if __name__ == '__main__':
     args = parse_arguments()
 
     QUIET = args.quiet
+    NOPROG = args.noprog
     DEBUG = args.debug
     PREFIX = args.prefix
     FRAME = defaultdict(set)

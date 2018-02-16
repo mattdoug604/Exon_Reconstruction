@@ -28,7 +28,7 @@ def parse_gff3(path, region=None):
                 continue
             line = line.split('\t')
             intron = line[0], int(line[3]), int(line[4]), line[6]
-            count = int(line[5])
+            count = float(line[5])
             # if the feature is outside the specified region, skip it
             if region is not None:
                 if region[1] <= intron[1] <= region[2]:

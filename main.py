@@ -34,11 +34,16 @@ def parse_arguments():
                         type=str,
                         nargs='?',
                         default='exons', help='prefix for the output files')
+    parser.add_argument('-p',
+                        dest='noprog',
+                        action='store_true',
+                        default=False,
+                        help='do not print progress information [incompatible w/ -d]')
     parser.add_argument('-q',
                         dest='quiet',
                         action='store_true',
                         default=False,
-                        help='do not print progress information [incompatible w/ -d]')
+                        help='do not print any information [incompatible w/ -d]')
     parser.add_argument('-d',
                         dest='debug',
                         action='store_true',
