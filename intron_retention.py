@@ -1,5 +1,5 @@
 #!/home2/mattdoug/python3/bin/python3
-# Last updated: 14/2/2018
+# Last updated: 16/2/2018
 # Author: Matt Douglas
 
 import pysam
@@ -9,9 +9,6 @@ def pprint(*args, **kwargs):
     level = kwargs.pop('level', {'level':None})
     if level == 'debug':
         if DEBUG:
-            print(*args, **kwargs)
-    elif level == 'progress':
-        if not QUIET and not DEBUG:
             print(*args, **kwargs)
     else:
         if not QUIET:
@@ -42,7 +39,7 @@ def id_events(introns, exons):
         chrom, start, end, strand = e
         temp_exons[(chrom, strand)].add((start, end))
 
-    pprint('Identifying intron retention events...', end='', level='progress')
+    pprint('Identifying intron retention events...', end='')
     for region, introns in temp_introns.items():
         exons = temp_exons[region]
         for i in introns:

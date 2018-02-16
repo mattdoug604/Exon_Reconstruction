@@ -1,5 +1,5 @@
 #!/home2/mattdoug/python3/bin/python3
-# Last updated: 14/2/2018
+# Last updated: 16/2/2018
 # Author: Matt Douglas
 
 def parse_arguments():
@@ -9,6 +9,7 @@ def parse_arguments():
 
     parser = argparse.ArgumentParser(
                         description='Reconstruct exons from RNA-Seq data.')
+    # mandatory files ##########################################################
     parser.add_argument('-x',
                         dest='index',
                         type=str,
@@ -24,12 +25,19 @@ def parse_arguments():
                         type=str,
                         nargs='?',
                         help='aligned reads in SAM/BAM format')
+    # optional arguments #######################################################
     parser.add_argument('-r',
                         dest='region',
                         type=str,
                         nargs='?',
                         help='limit search to genomic coordinates (e.g. I:1000-2000)')
-    parser.add_argument('-p',
+    parser.add_argument('--min-score',
+                        type=float,
+                        nargs='?',
+                        default=0,
+                        help='ignore introns with less than this')
+    # control the output #######################################################
+    parser.add_argument('-o',
                         dest='prefix',
                         type=str,
                         nargs='?',

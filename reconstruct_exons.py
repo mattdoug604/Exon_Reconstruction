@@ -1,6 +1,6 @@
 #!/home2/mattdoug/python3/bin/python3
+# Last updated: 16/2/2018
 # Author: Matt Douglas
-# Last updated: 14/2/2018
 
 # PURPOSE: Reconstruct protein-coding exons from a reference genome and RNA-seq
 # data.

@@ -67,37 +67,3 @@ def parse_index(args):
     pprint('  {:,} stop codons'.format(end_c))
 
     return index_f, index_r
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-                        description='Parse the index files created by reconstruct_exons_index.py')
-    parser.add_argument('-x',
-                        dest='index',
-                        type=str,
-                        nargs='?',
-                        help='prefix of the genome index files')
-    parser.add_argument('-r',
-                        dest='region',
-                        type=str,
-                        nargs='?',
-                        help='limit search to genomic coordinates (e.g. I:1000-2000)')
-    parser.add_argument('-q',
-                        dest='quiet',
-                        action='store_true',
-                        default=False,
-                        help='do not pprint any progress information')
-
-    args = parser.parse_args()
-    if not args.index:
-        parser.pprint_help()
-        sys.exit(1)
-
-    # convert a string (e.g. "I:1000..2000") to a tuple
-    if args.region is not None:
-        temp = args.region.strip().replace(',', '').replace('..', '-')
-        temp = re.split(':|-|_', temp)
-        chrom, start, end = temp[0], int(temp[1]), int(temp[2])
-        args.region = chrom, start, end
-
-    index_f, index_r = parse_index(args.index, args.region)
