@@ -68,11 +68,13 @@ def parse_region(region_coord):
 
 def sort_exons(exons):
     """Sort tuples of exons by chromosome, then start position, then end
-    position. NOTE: Wormbase uses roman numerals for chromosomes names.
+    position. NOTE: C. elegans uses roman numerals for chromosomes names.
     """
     numerals = {'I':1, 'II':2, 'III':3, 'IV':4, 'V':5, 'X':10, 'MtDNA':11}
-    sorted_exons = sorted(exons, key=lambda x: (numerals[x.chrom], x.start, x.end))
-    return sorted_exons
+    try:
+        return sorted(exons, key=lambda x: (numerals[x.chrom], x.start, x.end))
+    except KeyError:
+        return sorted(exons, key=lambda x: (x.chrom, x.start, x.end))
 
 
 def print_as_gff3(exons, out_path, kind='CDS'):
@@ -195,4 +197,3 @@ if __name__ == '__main__':
         if cov > 0:
             print(e.print_as_gff3(n+1))
     eprint('\rComputing exon coverage... Done!')
-    

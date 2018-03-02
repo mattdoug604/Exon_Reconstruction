@@ -128,7 +128,7 @@ def sort_indeces(index_dict):
 
 def sort_by_pos(features):
     """Sort tuples of exons by chromosome, then start position, then end
-    position. NOTE: Wormbase uses roman numerals for chromosomes names.
+    position. NOTE: C. elegans uses roman numerals for chromosomes names.
     """
     numerals = {'I':1, 'II':2, 'III':3, 'IV':4, 'V':5, 'X':10, 'MtDNA':11}
     try:
