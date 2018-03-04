@@ -56,7 +56,7 @@ def pprint(*args, **kwargs):
         if DEBUG:
             print(*args, **kwargs)
     elif level == 'progress':
-        if not QUIET and not NOPROG:
+        if True in (QUIET, NOPROG, DEBUG):
             print(*args, **kwargs)
     else:
         if not QUIET:
