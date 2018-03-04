@@ -601,6 +601,7 @@ def terminal_exons_in_phase(exon_l_term_dict, exon_r_term_dict, utr_introns):
         new_ADJ[intron] = [ set(), set() ]
         ########################################################################
         if intron in utr_introns:
+            pprint('Intron {} flagged as UTR! Skipping...'.format(intron), level='debug')
             continue
         ########################################################################
         # if no internal exons on both sides of the intron...
