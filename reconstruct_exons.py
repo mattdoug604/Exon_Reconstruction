@@ -40,12 +40,6 @@ class TranslationBlock(object):
         self.r_sites = [] # 3' splice sites
         self.s_sites = [] # start codons
 
-    def __len__(self):
-        return self.end - self.start + 1
-
-    def num_sites(self):
-        return sum([len(i) for i in (self.l_sites, self.r_sites, self.s_sites)])
-
 
 #####################
 # Utility functions #
@@ -56,7 +50,7 @@ def pprint(*args, **kwargs):
         if DEBUG:
             print(*args, **kwargs)
     elif level == 'progress':
-        if True in (QUIET, NOPROG, DEBUG):
+        if True not in (QUIET, NOPROG, DEBUG):
             print(*args, **kwargs)
     else:
         if not QUIET:
@@ -89,7 +83,7 @@ def merge_dicts(x, y):
     return z
 
 
-def shift_frame(adj_frame, intron, direction):
+def frame_shift(adj_frame, intron, direction):
     """Calculate the frame a given exon uses based on the frame of the adjacent
     exon and the lenght of the adjacent intron.
     """
@@ -304,8 +298,6 @@ def get_putative_exons(blocks_f, blocks_r):
             pprint('\nScanning + strand, reading frame {}'.format(frame), level='debug')
             count += 1
             for block in i:
-                if block.num_sites() < 1:
-                    continue
                 l_sites = sorted(block.l_sites)
                 r_sites = sorted(block.r_sites)
                 s_sites = sorted(block.s_sites)
@@ -347,9 +339,6 @@ def get_putative_exons(blocks_f, blocks_r):
             pprint('\nScanning - strand, reading frame {}'.format(frame), level='debug')
             count += 1
             for block in i:
-                if block.num_sites() < 1:
-                    continue
-                LCOUNT = 0
                 l_sites = sorted(block.l_sites)
                 r_sites = sorted(block.r_sites)
                 s_sites = sorted(block.s_sites)
@@ -436,7 +425,7 @@ def resolve_internal_frames(exon_internal, max_iterations=20):
                     adj_frames = FRAME[adj_exon]
                     if len(adj_frames) != 1:
                         pprint('  Determining frame for exon {}, frames: {}'.format(adj_exon, adj_frames), level='debug')
-                        new_frame = shift_frame(frame, intron, strand+'<')
+                        new_frame = frame_shift(frame, intron, strand+'<')
                         new_FRAME[adj_exon].add(new_frame)
             ####################################################################
             for intron in downstream_introns:
@@ -445,7 +434,7 @@ def resolve_internal_frames(exon_internal, max_iterations=20):
                     adj_frames = FRAME[adj_exon]
                     if len(adj_frames) != 1:
                         pprint('  Determining frame for exon {}, frames {}:'.format(adj_exon, adj_frames), level='debug')
-                        new_frame = shift_frame(frame, intron, strand+'>')
+                        new_frame = frame_shift(frame, intron, strand+'>')
                         new_FRAME[adj_exon].add(new_frame)
 
         # update reading frames
@@ -499,7 +488,7 @@ def trim_false_internal_exons(exon_internal, exon_l_term_dict, exon_r_term_dict,
                 pprint('  Looking for exons adjacent to upstream intron {}...'.format(intron), level='debug')
                 adj_internal_exons = ADJ[intron][0]
                 adj_term_exons = exon_l_term_dict[intron[0], intron[1]-1, intron[3]]
-                expect_frames = set([shift_frame(f, intron, strand+'<') for f in FRAME[exon]])
+                expect_frames = set([frame_shift(f, intron, strand+'<') for f in FRAME[exon]])
                 pprint('    Expected frames =', expect_frames, level='debug')
                 for adj_exon in adj_internal_exons:
                     if expect_frames & FRAME[adj_exon]:
@@ -516,7 +505,7 @@ def trim_false_internal_exons(exon_internal, exon_l_term_dict, exon_r_term_dict,
                 pprint('  Looking for exons adjacent to downstream intron {}...'.format(intron), level='debug')
                 adj_internal_exons = ADJ[intron][1]
                 adj_term_exons = exon_r_term_dict[intron[0], intron[2]+1, intron[3]]
-                expect_frames = set([shift_frame(f, intron, strand+'>') for f in FRAME[exon]])
+                expect_frames = set([frame_shift(f, intron, strand+'>') for f in FRAME[exon]])
                 for adj_exon in adj_internal_exons:
                     if expect_frames & FRAME[adj_exon]:
                         pprint('    Internal exon {} is in frame (expect: {}, found: {})'.format(adj_exon, expect_frames, FRAME[adj_exon]), level='debug')
@@ -535,11 +524,13 @@ def trim_false_internal_exons(exon_internal, exon_l_term_dict, exon_r_term_dict,
                 pprint('  No downstream exon! Removing.', level='debug')
                 to_remove_exons.add(exon)
                 for i in downstream_introns:
+                    pprint('    Removing intron ', i, level='debug')
                     utr_introns.add(i)
             if validate_r:
                 pprint('  No upstream exon! Removing.', level='debug')
                 to_remove_exons.add(exon)
                 for i in upstream_introns:
+                    pprint('    Removing intron ', i, level='debug')
                     utr_introns.add(i)
             for intron in upstream_introns:
                 pprint('    Removing exon from ADJ of intron {} (right)'.format(intron), level='debug')
@@ -633,7 +624,7 @@ def terminal_exons_in_phase(exon_l_term_dict, exon_r_term_dict, utr_introns):
             # check which exons are in frame with each other
             # check if they are a valid ORF (i.e. modulo 3 == 0)
             for f, l_set in l_compare.items():
-                new_f = shift_frame(f, intron, strand+'>')
+                new_f = frame_shift(f, intron, strand+'>')
                 if new_f in r_compare:
                     r_set = r_compare[new_f]
                 else:
@@ -670,7 +661,7 @@ def terminal_exons_in_phase(exon_l_term_dict, exon_r_term_dict, utr_introns):
             # internal exons
             for exon in r_adj:
                 for f in FRAME[exon]:
-                    new_f = shift_frame(f, intron, strand+'<')
+                    new_f = frame_shift(f, intron, strand+'<')
                     pprint('  Downstream exon {}, frame {}'.format(exon, f), level='debug')
                     expected.add(new_f)
             pprint('  Expect adjacent frames to be one of: {}'.format(expected), level='debug')
@@ -704,7 +695,7 @@ def terminal_exons_in_phase(exon_l_term_dict, exon_r_term_dict, utr_introns):
             # internal exons
             for exon in l_adj:
                 for f in FRAME[exon]:
-                    new_f = shift_frame(f, intron, strand+'>')
+                    new_f = frame_shift(f, intron, strand+'>')
                     expected.add(new_f)
             pprint('  Expect adjacent frames to be one of: {}'.format(expected), level='debug')
             # only keep the longest exon(s) that match the expected frame(s)
