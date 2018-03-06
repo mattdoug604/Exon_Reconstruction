@@ -19,8 +19,9 @@ def pprint(*args, **kwargs):
             print(*args, **kwargs)
 
 
-def parse_gff3(path, min_score, strand_only, region=None):
+def parse_gff3(path, min_score=0, strand_only=False, region=None):
     intron_dict = defaultdict(int)
+    introns = set()
     f_count = 0
     r_count = 0
     discard = 0
@@ -53,11 +54,11 @@ def parse_gff3(path, min_score, strand_only, region=None):
                 if intron[0] != region[0]:
                     continue
                 if region[1] <= intron[1] <= region[2]:
-                    intron_dict[intron] = count
+                    introns.add(intron)
                 elif region[1] <= intron[2] <= region[2]:
-                    intron_dict[intron] = count
+                    introns.add(intron)
             else:
-                intron_dict[intron] = count
+                introns.add(intron)
     pprint('\rGetting intron coordinates... Done!')
 
     pprint('  Found {:,} valid introns:'.format(f_count + r_count))
@@ -65,7 +66,7 @@ def parse_gff3(path, min_score, strand_only, region=None):
     pprint('    {:,} on the - strand'.format(r_count))
     pprint('  Discarded {:,} introns (min score < {} or no strand)'.format(discard, min_score))
 
-    return intron_dict
+    return introns
 
 
 def parse_CIGAR(pos, cigar):
@@ -114,17 +115,16 @@ def get_introns(args):
     strand_only = True
     region = args.region
     ref_set = None
-    intron_dict = defaultdict(int)
     splice_f = {}
     splice_r = {}
     site_dict = defaultdict(list)
 
-    intron_dict = parse_gff3(gff_path, min_score, strand_only, region)
+    introns = parse_gff3(gff_path, min_score, strand_only, region)
 
     # build dictionaries tracking: A) the positions of each splice site on the
     # forward and reverse strands, and B) which introns share a splice site.
     pprint('Indexing splice sites...', end='', level='debug')
-    for intron, count in intron_dict.items():
+    for intron in introns:
         chrom, left, right, strand = intron
         if strand == '+':
             for n in range(3):
@@ -155,4 +155,4 @@ def get_introns(args):
             site_dict[(chrom, right, strand)] = [intron]
     pprint('\rIndexing splice sites... Done!', level='debug')
 
-    return intron_dict, splice_f, splice_r, site_dict
+    return introns, splice_f, splice_r, site_dict
