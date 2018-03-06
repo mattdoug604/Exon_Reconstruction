@@ -19,7 +19,7 @@ def pprint(*args, **kwargs):
             print(*args, **kwargs)
 
 
-def parse_gff3(path, min_score, strand_only, region):
+def parse_gff3(path, min_score, strand_only, region=None):
     intron_dict = defaultdict(int)
     f_count = 0
     r_count = 0
@@ -50,6 +50,8 @@ def parse_gff3(path, min_score, strand_only, region):
                 continue
             # if the feature is outside the specified region, skip it
             if region is not None:
+                if intron[0] != region[0]:
+                    continue
                 if region[1] <= intron[1] <= region[2]:
                     intron_dict[intron] = count
                 elif region[1] <= intron[2] <= region[2]:
