@@ -39,11 +39,12 @@ def id_events(introns, exons):
         chrom, start, end, strand = e
         temp_exons[(chrom, strand)].add((start, end))
 
-    total = len(temp_introns)
-    count += 1
+    p_total = len(temp_introns)
+    p_count = 0
 
     for region, introns in temp_introns.items():
-        pprint('Identifying intron retention events... {}'.format(perc(count, total)), end='')
+        pprint('\rIdentifying intron retention events... {}'.format(perc(p_count, p_total)), end='')
+        p_count += 1
         exons = temp_exons[region]
         for i in introns:
             intron = region[0], i[0], i[1], region[1]
