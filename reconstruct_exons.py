@@ -1,13 +1,13 @@
 #!/home2/mattdoug/python3/bin/python3
-# Last updated: 16/2/2018
+# Last updated: 8/3/2018
 # Author: Matt Douglas
 
 # PURPOSE: Reconstruct protein-coding exons from a reference genome and RNA-seq
 # data.
 
 # UPDATES TO THIS VERSION:
-# Added in filtering criteria for intron retention events. An event must have
-# RNA-Seq coverage along >80% of the intron to be counted.
+# Fixed how the script deals with introns that have no upstream and/or
+# downstream exons.
 
 # MY NOTES:
 # I:217,489..219,488 - example of resolved 2-exon gene
@@ -19,8 +19,13 @@
 # I:506,491..508,490 - False intron retention events?
 # II:8,042,500..8,043,100 - intron retention in 5' terminal exon
 # II:1,918,871-1,919,297 - 1bp "intron" introduces stop codon
+# III:5,547,132-5,547,217 - Missed terminal exon (fixed)
+# X:48,051-48,995 - Two genes, same strand, overlap at the ends - not in frame with each other so the ends get (falsely) discarded as UTRs
+# II:6,490,579-6,491,167 - complex region w/ two "internal" 5' terminal exons
 
-# III:5,547,132-5,547,217 - Missed terminal exon
+# ALSO:
+# Tried Bedtools genomecov to get read depth for intron retention events, but
+# it seems to be just as slow (if not slower)
 
 from collections import defaultdict
 from itertools import chain, product
@@ -657,9 +662,16 @@ def terminal_exons_in_phase(exon_internal, exon_l_term_dict, exon_r_term_dict, m
             left_introns = SITE[(chrom, left-1, strand)]
             right_introns = SITE[(chrom, right+1, strand)]
             if len(left_introns) * len(right_introns) > 0:
+                pprint('  Keeping exon', exon, level='debug')
                 temp.append(exon)
             else:
+                pprint('  Discarding exon', exon, level='debug')
                 exon_discard.add(exon)
+                # remove the exon from the adj dict
+                for intron in left_introns + right_introns:
+                    if intron in ADJ:
+                        ADJ[intron][0].discard(exon)
+                        ADJ[intron][1].discard(exon)
         exon_internal = temp
 
     pprint('\rChecking which terminal exons are in phase... Done!  ')
@@ -681,11 +693,11 @@ def define_gene_ends(features):
     terminal exons, and introns.
     """
     flatten = chain.from_iterable
-    temp1   = defaultdict(list)
-    temp2   = defaultdict(list)
-    ends_f  = {}
-    ends_r  = {}
-    genes   = []
+    temp1 = defaultdict(list)
+    temp2 = defaultdict(list)
+    ends_f = {}
+    ends_r = {}
+    genes = []
 
     pprint('', level='debug')
     pprint('Defining putative gene boundaries', end='')
@@ -727,30 +739,25 @@ def define_gene_ends(features):
     pprint('\rDefining putative gene boundaries... Done!')
     pprint('  {:,} multi-exon genes found'.format( sum([len(i) for i in temp2.values()])))
 
-    if DEBUG: # report gene boundaries
-        for d, s in ((ends_f, '+'), (ends_r, '-')):
-            for chrom, frames in d.items():
-                for pos, kind in frames[0]:
-                    if kind == 2:
-                        pprint('left side of gene at: {}:{:,} ({} strand)'.format(chrom, pos, s), level='debug')
-                    elif kind == 3:
-                        pprint('right side of gene at: {}:{:,} ({} strand)'.format(chrom, pos, s), level='debug')
-
-    # DEBUG: Print out putative gene boundaries
-    print_as_gff3(genes, PREFIX + '.gene_boundaries.gff3', kind='gene')
+    for d, s in ((ends_f, '+'), (ends_r, '-')):
+        for chrom, frames in d.items():
+            for pos, kind in frames[0]:
+                if kind == 2:
+                    pprint('left side of gene at: {}:{:,} ({} strand)'.format(chrom, pos, s), level='debug')
+                elif kind == 3:
+                    pprint('right side of gene at: {}:{:,} ({} strand)'.format(chrom, pos, s), level='debug')
 
     return ends_f, ends_r, genes
 
 
 def get_single_exons(index_f, index_r):
     exon_single = set()
-    count       = 0
-    total       = len(index_f)*6 #calculate the number of positions to check
+    count = 0
+    total = len(index_f)*6 #calculate the number of positions to check
 
     pprint('', level='debug')
     pprint('Checking intergenic regions for single exons', end='')
 
-    # scan the + strand of the genome
     for chrom, frames in index_f.items():
         for frame, i in enumerate(frames):
             pprint('\rChecking intergenic regions for single exons...', percent(count, total), end='', level='progress')
@@ -765,16 +772,14 @@ def get_single_exons(index_f, index_r):
                         track_list.append((pos, 0))
                 # When a stop codon is reached...
                 elif kind == 3:
-                    if len(track_list) > 0:
-                        for t, x in track_list:
-                            # if we're tracking from a start codon...
-                            if x == 0:
-                                exon = chrom, t, pos-1, '+'
-                                exon_single.add(exon)
-                                FRAME[exon].add(frame)
-                                pprint('  single-exon exon found at {}'.format(exon), level='debug')
-                    # reset
-                    track_list = []
+                    for t, x in track_list:
+                        # if we're tracking from a start codon...
+                        if x == 0:
+                            exon = chrom, t, pos-1, '+'
+                            exon_single.add(exon)
+                            FRAME[exon].add(frame)
+                            pprint('  single-exon exon found at {}'.format(exon), level='debug')
+                    track_list = [] # reset
                 # When a left splice site is reached...
                 elif kind == 1:
                     track_list = []
@@ -783,8 +788,7 @@ def get_single_exons(index_f, index_r):
                 elif kind == 2:
                     track_list = []
                     intergenic = True
-
-    # scan the - strand of the genome
+    ############################################################################
     for chrom, frames in index_r.items():
         for frame, i in enumerate(frames):
             pprint('\rChecking intergenic regions for single exons...', percent(count, total), end='', level='progress')
@@ -836,8 +840,6 @@ if __name__ == '__main__':
     FRAME = defaultdict(set)
     NOTE = defaultdict(set)
 
-    pprint('Starting exon reconstruction', level='debug')
-
     # Parse the index files (positions of start and stop codons) #
     ##############################################################
     index_f, index_r = parse_index(args)
@@ -879,8 +881,7 @@ if __name__ == '__main__':
     index_r = merge_dicts(index_r, ends_r)
     index_f = sort_indeces(index_f)
     index_r = sort_indeces(index_r)
-    #exon_single = get_single_exons(index_f, index_r)
-    exon_single = []
+    exon_single = get_single_exons(index_f, index_r)
 
     # Output the results #
     ######################
@@ -888,46 +889,47 @@ if __name__ == '__main__':
     exon_internal = sort_by_pos(exon_internal)
     exon_five_term = sort_by_pos(exon_five_term)
     exon_three_term = sort_by_pos(exon_three_term)
+    exon_final = sort_by_pos(exon_internal + exon_five_term + exon_three_term)
     exon_single = sort_by_pos(exon_single)
     print_as_gff3(exon_internal, PREFIX + '.internal.gff3')
     print_as_gff3(exon_five_term, PREFIX + '.five_term.gff3')
     print_as_gff3(exon_three_term, PREFIX + '.three_term.gff3')
     print_as_gff3(exon_single, PREFIX + '.single.gff3')
-    exon_all = sort_by_pos(exon_internal + exon_five_term + exon_three_term)
-    print_as_gff3(exon_all, PREFIX + '.final.gff3')
+    print_as_gff3(genes, PREFIX + '.gene_boundaries.gff3', kind='gene')
+    print_as_gff3(exon_final, PREFIX + '.final.gff3')
     pprint('\rOutputting results... Done!')
-    pprint('  {:,} internal exons'.format(len(exon_internal)))
-    pprint("  {:,} 5' terminal exons".format(len(exon_five_term)))
-    pprint("  {:,} 3' terminal exons".format(len(exon_three_term)))
+    pprint('  {:,} multi-exon genes, {:,} exons found'.format(len(genes), len(exon_final)))
+    pprint('    {:,} internal exons'.format(len(exon_internal)))
+    pprint("    {:,} 5' terminal exons".format(len(exon_five_term)))
+    pprint("    {:,} 3' terminal exons".format(len(exon_three_term)))
     pprint('  {:,} single exon genes'.format(len(exon_single)))
-    pprint('  {:,} exons total (not counting single-exon genes)'.format(len(exon_all)))
 
     # Report on some specific events #
     ##################################
-    pprint('Notes:')
-    # report any internal exons that don't have an adjacent exon
-    no_l = set()
-    no_r = set()
-    no_both = set()
-    for intron, adj in ADJ.items():
-        chrom, start, end, strand = intron
-        l_adj = adj[0]
-        r_adj = adj[1]
-        if len(l_adj) < 1 and len(r_adj) < 1: # intron has no exons on either side
-            no_both.add(intron)
-        elif len(l_adj) < 1: # intron has no exons on upstream side
-            no_l = no_l | r_adj
-        elif len(r_adj) < 1: # intron has no exons on downstream side
-            no_r = no_r | l_adj
-    no_l = sort_by_pos(no_l)
-    no_r = sort_by_pos(no_r)
-    no_both = sort_by_pos(no_both)
-    print_as_gff3(no_l, PREFIX + '.no_upstream.gff3')
-    print_as_gff3(no_r, PREFIX + '.no_downstream.gff3')
-    print_as_gff3(no_both, PREFIX + '.alone_introns.gff3', kind='intron')
-    pprint('  {:,} introns have no adjacent upstream exon'.format( len(no_l)))
-    pprint('  {:,} introns have no adjacent downstream exon'.format( len(no_r)))
-    pprint('  {:,} introns have no adjacent exons at all'.format( len(no_both)))
+    # pprint('Notes:')
+    # # report any internal exons that don't have an adjacent exon
+    # no_l = set()
+    # no_r = set()
+    # no_both = set()
+    # for intron, adj in ADJ.items():
+    #     chrom, start, end, strand = intron
+    #     l_adj = adj[0]
+    #     r_adj = adj[1]
+    #     if len(l_adj) < 1 and len(r_adj) < 1: # intron has no exons on either side
+    #         no_both.add(intron)
+    #     elif len(l_adj) < 1: # intron has no exons on upstream side
+    #         no_l = no_l | r_adj
+    #     elif len(r_adj) < 1: # intron has no exons on downstream side
+    #         no_r = no_r | l_adj
+    # no_l = sort_by_pos(no_l)
+    # no_r = sort_by_pos(no_r)
+    # no_both = sort_by_pos(no_both)
+    # print_as_gff3(no_l, PREFIX + '.no_upstream.gff3')
+    # print_as_gff3(no_r, PREFIX + '.no_downstream.gff3')
+    # print_as_gff3(no_both, PREFIX + '.alone_introns.gff3', kind='intron')
+    # pprint('  {:,} introns have no adjacent upstream exon'.format( len(no_l)))
+    # pprint('  {:,} introns have no adjacent downstream exon'.format( len(no_r)))
+    # pprint('  {:,} introns have no adjacent exons at all'.format( len(no_both)))
 
     # Finish up #
     #############
