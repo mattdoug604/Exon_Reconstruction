@@ -10,10 +10,12 @@ def pprint(*args, **kwargs):
     if level == 'debug':
         if DEBUG:
             print(*args, **kwargs)
+    elif level == 'progress':
+        if True not in (QUIET, NOPROG, DEBUG):
+            print(*args, **kwargs)
     else:
         if not QUIET:
             print(*args, **kwargs)
-
 
 def perc(count, total):
     if total == 0:
@@ -67,7 +69,7 @@ def filter_by_coverage(bamfile, ret_intron_dict, introns, min_depth, min_cov, mi
 
     for n, f in enumerate(ret_intron_dict, 1):
         pprint('\rFiltering events (min cov={}, min depth={:,}, min ratio={})... {}'
-               .format(min_cov, min_depth, min_ratio, perc(n, f_total)), end='')
+               .format(min_cov, min_depth, min_ratio, perc(n, f_total)), end='', level='progress')
         region = f[0], f[1]-1, f[2]
         length = f[2] - f[1] + 1
         count = introns[f]
@@ -92,6 +94,7 @@ def filter_by_coverage(bamfile, ret_intron_dict, introns, min_depth, min_cov, mi
             for e in ret_intron_dict[f]:
                 exon = f[0], e[0], e[1], f[3]
                 discard.add(exon)
+                pprint('  Discrading exon', exon, level='debug')
 
     pprint('\rFiltering events (min cov={}, min depth={:,}, min ratio={})... Done! '
            .format(min_cov, min_depth, min_ratio))
@@ -102,16 +105,18 @@ def filter_by_coverage(bamfile, ret_intron_dict, introns, min_depth, min_cov, mi
 
 def filter(args, introns, exons, min_depth=2, min_cov=0.8, min_ratio=0):
     global QUIET
+    global NOPROG
     global DEBUG
     QUIET = args.quiet
+    NOPROG = args.noprog
     DEBUG = args.debug
     path = args.bam
 
     if path.lower().endswith('.bam'):
         bamfile = pysam.AlignmentFile(path, 'rb')
     else:
+        pprint('[ERROR] Alignments must be a sorted and indexed BAM file!')
         sys.exit(1)
-        bamfile = pysam.AlignmentFile(path, 'r')
 
     ret_intron_dict = id_events(introns, exons)
     discard = filter_by_coverage(bamfile, ret_intron_dict, introns, min_depth, min_cov, min_ratio)
