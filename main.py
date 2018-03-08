@@ -71,8 +71,6 @@ def parse_arguments():
         chrom, start, end = temp[0], int(temp[1]), int(temp[2])
         args.region = chrom, start, end
         region_str = '{}:{:,}-{:,}'.format(*args.region)
-    else:
-        region_str = 'All'
 
     # report arguments from the command line
     if not args.quiet:
@@ -80,7 +78,8 @@ def parse_arguments():
         print('Intron file   =', args.introns)
         print('Aligned reads =', args.bam)
         print('Output prefix =', args.prefix)
-        print('Search region =', region_str)
+        if args.region is not None:
+            print('Search region =', region_str)
         print('')
 
     return args
