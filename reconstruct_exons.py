@@ -24,7 +24,7 @@
 # II:6,490,579-6,491,167 - complex region w/ two "internal" 5' terminal exons
 
 # ALSO:
-# Tried Bedtools genomecov to get read depth for intron retention events, but
+# Tried 'bedtools coverage' to get read depth for intron retention events, but
 # it seems to be just as slow (if not slower)
 
 from collections import defaultdict
@@ -137,14 +137,15 @@ def sort_by_pos(features):
         return sorted(features, key=lambda x: (x[0], int(x[1]), int(x[2])))
 
 
-def print_as_gff3(features, out_path, kind='CDS'):
+def print_as_gff3(features, out_path, kind='CDS', mode='w'):
     """Convert the results from a tuple (chromosome, start, end, strand to GFF3
     format and print.
     """
     pprint('Printing results to "{}"'.format(out_path), level='debug')
 
-    with open(out_path, 'w') as f:
-        print('##gff-version 3', file=f)
+    with open(out_path, mode) as f:
+        if 'w' in mode:
+            print('##gff-version 3', file=f)
         for n, feat in enumerate(features):
             chrom, left, right, strand = feat
             score = '.'
@@ -260,6 +261,8 @@ def get_translation_blocks(index_f, index_r):
     # DEBUG: output all the translation blocks
     temp_f = merge_dicts(blocks_f, empty_blocks_f)
     temp_r = merge_dicts(blocks_r, empty_blocks_r)
+    out_path = '{}.translation_blocks.gff3'.format(PREFIX)
+    print_as_gff3([], out_path, mode='w') # create a new file
     for d, strand, suf in ((temp_f, '+', 'plus'), (temp_r, '-', 'minus')):
         temp = [ [], [], [] ]
         for chrom, frames in d.items():
@@ -267,8 +270,7 @@ def get_translation_blocks(index_f, index_r):
                 temp[frame] += [(chrom, i.start, i.end, strand) for i in blocks]
         for frame, blocks in enumerate(temp):
             blocks = sort_by_pos(blocks)
-            out_path = '{}.t_blocks.{}{}.gff3'.format(PREFIX, suf, frame)
-            print_as_gff3(blocks, out_path, kind='block')
+            print_as_gff3(blocks, out_path, kind=suf+str(frame), mode='a')
 
     return blocks_f, blocks_r
 
