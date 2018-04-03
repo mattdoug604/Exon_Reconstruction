@@ -19,7 +19,7 @@ def pprint(*args, **kwargs):
             print(*args, **kwargs)
 
 
-def parse_gff3(path, min_score, strand_only, region=None):
+def parse_gff3(path, region=None):
     intron_dict = defaultdict(int)
     f_count = 0
     r_count = 0
@@ -37,7 +37,7 @@ def parse_gff3(path, min_score, strand_only, region=None):
                 f_count += 1
             elif strand == '-':
                 r_count += 1
-            elif strand_only:
+            else:
                 discard += 1
                 continue
             # make sure the score meets the minimum
@@ -45,9 +45,6 @@ def parse_gff3(path, min_score, strand_only, region=None):
                 count = float(line[5])
             else:
                 count = 0.0
-            if count < min_score:
-                discard += 1
-                continue
             # if the feature is outside the specified region, skip it
             if region is not None:
                 if intron[0] != region[0]:
@@ -63,7 +60,7 @@ def parse_gff3(path, min_score, strand_only, region=None):
     pprint('  Found {:,} valid introns:'.format(f_count + r_count))
     pprint('    {:,} on the + strand'.format(f_count))
     pprint('    {:,} on the - strand'.format(r_count))
-    pprint('  Discarded {:,} introns (min score < {} or no strand)'.format(discard, min_score))
+    pprint('  Discarded {:,} introns without a defined strand'.format(discard))
 
     return intron_dict
 
@@ -110,8 +107,6 @@ def get_introns(args):
     DEBUG = args.debug
     PREFIX = args.prefix
     gff_path = args.introns
-    min_score = args.min_score
-    strand_only = True
     region = args.region
     ref_set = None
     intron_dict = defaultdict(int)
@@ -119,7 +114,7 @@ def get_introns(args):
     splice_r = {}
     site_dict = defaultdict(list)
 
-    intron_dict = parse_gff3(gff_path, min_score, strand_only, region)
+    intron_dict = parse_gff3(gff_path, region)
 
     # build dictionaries tracking: A) the positions of each splice site on the
     # forward and reverse strands, and B) which introns share a splice site.
