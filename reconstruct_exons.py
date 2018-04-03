@@ -23,6 +23,9 @@
 # X:48,051-48,995 - Two genes, same strand, overlap at the ends - not in frame with each other so the ends get (falsely) discarded as UTRs
 # II:6,490,579-6,491,167 - complex region w/ two "internal" 5' terminal exons
 
+# TO DO:
+# V:14895887..14895997 - intron retention in terminal exons, how to deal with?
+
 # ALSO:
 # Tried 'bedtools coverage' to get read depth for intron retention events, but
 # it seems to be just as slow (if not slower)
@@ -473,7 +476,7 @@ def resolve_internal_frames(exon_list, max_iter=20):
             pprint('  {}, frames: {}'.format(exon, frames), level='debug')
 
     pprint('\rIdentifying the correct phase for internal exons... Done!')
-    pprint('  Resolved {:,} case(s) where an internal exons had >1 possible phase'
+    pprint('  Resolved {:,} case(s) where an internal exon had >1 possible phase'
            .format(total_change))
     pprint('  The phase of {:,} ({}) internal exons could not be determined'
            .format(len(unresolved), percent(len(unresolved), len(exon_list))))
@@ -510,7 +513,7 @@ def terminal_exons_in_phase(exon_internal, exon_l_term_dict, exon_r_term_dict, m
         new_ADJ = {}
         for intron, adj in ADJ.items():
             pprint('\rChecking which terminal exons are in phase...',
-                   percent(count, total), end='', level='progress')
+                   percent(count/max_iter, total), end='', level='progress')
             chrom, l, r, strand = intron
             l_adj, r_adj = adj
             left_exons = exon_l_term_dict[(chrom, l-1, strand)]
@@ -749,6 +752,8 @@ def define_gene_ends(features):
                 elif kind == 3:
                     pprint('right side of gene at: {}:{:,} ({} strand)'.format(chrom, pos, s), level='debug')
 
+    print_as_gff3(genes, PREFIX + '.genes.gff3', kind='gene')
+
     return ends_f, ends_r, genes
 
 
@@ -862,7 +867,7 @@ if __name__ == '__main__':
     # Get all putative internal and terminal positions #
     ####################################################
     exon_internal, exon_l_term_dict, exon_r_term_dict = get_putative_exons(blocks_f, blocks_r)
-    exon_internal, _ = intron_retention.filter(args, introns, exon_internal)
+    #exon_internal, _ = intron_retention.filter(args, introns, exon_internal) # disabled intron retention filtering for now (26/3/2018)
 
     # Try and resolve ambiguous phase for internal exons #
     ######################################################
@@ -883,7 +888,7 @@ if __name__ == '__main__':
     index_r = merge_dicts(index_r, ends_r)
     index_f = sort_indeces(index_f)
     index_r = sort_indeces(index_r)
-    exon_single = get_single_exons(index_f, index_r)
+    exon_single = [] #exon_single = get_single_exons(index_f, index_r)
 
     # Output the results #
     ######################
@@ -897,7 +902,6 @@ if __name__ == '__main__':
     print_as_gff3(exon_five_term, PREFIX + '.five_term.gff3')
     print_as_gff3(exon_three_term, PREFIX + '.three_term.gff3')
     print_as_gff3(exon_single, PREFIX + '.single.gff3')
-    print_as_gff3(genes, PREFIX + '.gene_boundaries.gff3', kind='gene')
     print_as_gff3(exon_final, PREFIX + '.final.gff3')
     pprint('\rOutputting results... Done!')
     pprint('  {:,} multi-exon genes, {:,} exons found'.format(len(genes), len(exon_final)))
