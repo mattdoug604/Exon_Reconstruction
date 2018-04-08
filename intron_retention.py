@@ -70,12 +70,14 @@ def filter_by_coverage(bamfile, ret_intron_dict, introns, min_depth, min_cov, mi
     for n, f in enumerate(ret_intron_dict, 1):
         pprint('\rFiltering events (min cov={}, min depth={:,}, min ratio={})... {}'
                .format(min_cov, min_depth, min_ratio, perc(n, f_total)), end='', level='progress')
-        region = f[0], f[1]-1, f[2]
-        length = f[2] - f[1] + 1
-        count = introns[f]
         bp_no_cov = 0
         reads = set()
         fail = False
+        score = introns[f]
+        region = f[0], f[1]-1, f[2]
+        length = f[2] - f[1] + 1
+        if length <= 0:
+            continue
         for pileupcolumn in bamfile.pileup(*region, truncate=True):
             depth = 0
             has_cov = False
@@ -90,7 +92,8 @@ def filter_by_coverage(bamfile, ret_intron_dict, introns, min_depth, min_cov, mi
             if (bp_no_cov / length) > min_no_cov: # goto next feature if exceeds minimum % of no coverage
                 fail = True
                 break
-        if fail or (len(reads) / count) < min_ratio:
+        ratio = (len(reads) / score if score > 0 else 1)
+        if fail or ratio < min_ratio:
             for e in ret_intron_dict[f]:
                 exon = f[0], e[0], e[1], f[3]
                 discard.add(exon)
@@ -103,7 +106,7 @@ def filter_by_coverage(bamfile, ret_intron_dict, introns, min_depth, min_cov, mi
     return discard
 
 
-def filter(args, introns, exons, min_depth=2, min_cov=0.8, min_ratio=0):
+def filter(args, introns, exons):
     global QUIET
     global NOPROG
     global DEBUG
@@ -111,6 +114,9 @@ def filter(args, introns, exons, min_depth=2, min_cov=0.8, min_ratio=0):
     NOPROG = args.noprog
     DEBUG = args.debug
     path = args.bam
+    min_depth = 2
+    min_cov = 0.8
+    min_ratio = 0
 
     if path.lower().endswith('.bam'):
         bamfile = pysam.AlignmentFile(path, 'rb')
