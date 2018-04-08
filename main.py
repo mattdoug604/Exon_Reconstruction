@@ -31,11 +31,6 @@ def parse_arguments():
                         type=str,
                         nargs='?',
                         help='limit search to genomic coordinates (e.g. I:1000-2000)')
-    parser.add_argument('--min-score',
-                        type=float,
-                        nargs='?',
-                        default=0,
-                        help='ignore introns with less than this')
     # control the output #######################################################
     parser.add_argument('-o',
                         dest='prefix',

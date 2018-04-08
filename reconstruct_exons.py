@@ -259,7 +259,7 @@ def get_translation_blocks(index_f, index_r):
                     block = TranslationBlock()
 
     pprint('\rIdentifying all translation blocks... Done!    ')
-    pprint('  {:,} translation blocks total'.format(num_blks))
+    pprint('  {:,} translation blocks'.format(num_blks))
 
     # DEBUG: output all the translation blocks
     temp_f = merge_dicts(blocks_f, empty_blocks_f)
@@ -685,7 +685,7 @@ def terminal_exons_in_phase(exon_internal, exon_l_term_dict, exon_r_term_dict, m
 
     print_as_gff3(single_intron, PREFIX + '.double.gff3') # DEBUG
     print_as_gff3(intron_discard, PREFIX + '.non_coding_introns.gff3') # DEBUG
-    print_as_gff3(exon_discard, PREFIX + '.removed.gff3') # DEBUG
+    print_as_gff3(exon_discard, PREFIX + '.terminal_removed.gff3') # DEBUG
 
     exon_five_term = list(exon_five_term)
     exon_three_term = list(exon_three_term)
@@ -867,7 +867,7 @@ if __name__ == '__main__':
     # Get all putative internal and terminal positions #
     ####################################################
     exon_internal, exon_l_term_dict, exon_r_term_dict = get_putative_exons(blocks_f, blocks_r)
-    #exon_internal, _ = intron_retention.filter(args, introns, exon_internal) # disabled intron retention filtering for now (26/3/2018)
+    exon_internal, _ = intron_retention.filter(args, introns, exon_internal) # disabled intron retention filtering for now (26/3/2018)
 
     # Try and resolve ambiguous phase for internal exons #
     ######################################################
@@ -888,7 +888,7 @@ if __name__ == '__main__':
     index_r = merge_dicts(index_r, ends_r)
     index_f = sort_indeces(index_f)
     index_r = sort_indeces(index_r)
-    exon_single = [] #exon_single = get_single_exons(index_f, index_r)
+    # exon_single = get_single_exons(index_f, index_r)
 
     # Output the results #
     ######################
@@ -897,18 +897,18 @@ if __name__ == '__main__':
     exon_five_term = sort_by_pos(exon_five_term)
     exon_three_term = sort_by_pos(exon_three_term)
     exon_final = sort_by_pos(exon_internal + exon_five_term + exon_three_term)
-    exon_single = sort_by_pos(exon_single)
+    # exon_single = sort_by_pos(exon_single)
     print_as_gff3(exon_internal, PREFIX + '.internal.gff3')
     print_as_gff3(exon_five_term, PREFIX + '.five_term.gff3')
     print_as_gff3(exon_three_term, PREFIX + '.three_term.gff3')
-    print_as_gff3(exon_single, PREFIX + '.single.gff3')
+    # print_as_gff3(exon_single, PREFIX + '.single.gff3')
     print_as_gff3(exon_final, PREFIX + '.final.gff3')
     pprint('\rOutputting results... Done!')
     pprint('  {:,} multi-exon genes, {:,} exons found'.format(len(genes), len(exon_final)))
     pprint('    {:,} internal exons'.format(len(exon_internal)))
     pprint("    {:,} 5' terminal exons".format(len(exon_five_term)))
     pprint("    {:,} 3' terminal exons".format(len(exon_three_term)))
-    pprint('  {:,} single exon genes'.format(len(exon_single)))
+    # pprint('  {:,} single exon genes'.format(len(exon_single)))
 
     # Report on some specific events #
     ##################################
