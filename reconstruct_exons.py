@@ -1,14 +1,13 @@
 #!/home2/mattdoug/python3/bin/python3
-# Last updated: 8/3/2018
+# Last updated: 12/4/2018
 # Author: Matt Douglas
-
+#
 # PURPOSE: Reconstruct protein-coding exons from a reference genome and RNA-seq
 # data.
-
-# UPDATES TO THIS VERSION:
-# Fixed how the script deals with introns that have no upstream and/or
-# downstream exons.
-
+#
+# UPDATES: In this version, exons are scored based on the score of the adjacent
+# intron(s).
+#
 # MY NOTES:
 # I:217,489..219,488 - example of resolved 2-exon gene
 # X:2,412,849..2,413,848 - example of incorrect 2-exon gene
@@ -22,11 +21,11 @@
 # III:5,547,132-5,547,217 - Missed terminal exon (fixed)
 # X:48,051-48,995 - Two genes, same strand, overlap at the ends - not in frame with each other so the ends get (falsely) discarded as UTRs
 # II:6,490,579-6,491,167 - complex region w/ two "internal" 5' terminal exons
-
+#
 # TO DO:
 # V:14895887..14895997 - intron retention in terminal exons, how to deal with?
-
-# ALSO:
+#
+# NOTS:
 # Tried 'bedtools coverage' to get read depth for intron retention events, but
 # it seems to be just as slow (if not slower)
 
@@ -43,6 +42,10 @@ import intron_retention
 # Class definitions #
 #####################
 class TranslationBlock(object):
+    """A translation block is an object that represents the region from one stop
+    codon to the next stop codon in a reading frame of the genome. Each
+    TranslationBlock object tracks the start and end positions of the block, as
+    well as all splice sites and putative start codons that lie within."""
     __slots__ = ['start', 'end', 'l_sites', 'r_sites', 's_sites']
     def __init__(self):
         self.start = -1
@@ -59,6 +62,8 @@ class TranslationBlock(object):
 # Utility functions #
 #####################
 def pprint(*args, **kwargs):
+    """Print runtime information at various 'levels' that can be turned on or
+    off."""
     level = kwargs.pop('level', {'level':None})
     if level == 'debug':
         if DEBUG:
@@ -71,16 +76,18 @@ def pprint(*args, **kwargs):
             print(*args, **kwargs)
 
 
-def percent(count, total):
+def percent(val, total):
     if total == 0:
         return '0%'
-    per = count * 100 / total
+    per = val * 100 / total
     per = '{0:.1f}%'.format(per)
 
     return per
 
 
 def merge_dicts(x, y):
+    """Merge to dictionaries (x, y) with the structure: key:[[], [], []] into a
+    new dictionary (z) with the same structure."""
     z = {}
 
     for chrom, frames in x.items():
@@ -99,31 +106,33 @@ def merge_dicts(x, y):
 
 def frame_shift(adj_frame, intron, direction):
     """Calculate the frame a given exon uses based on the frame of the adjacent
-    exon and the lenght of the adjacent intron.
+    exon and the lenght of the intervening intron.
     """
-    intron_len = intron[2]-intron[1]+1
-    modulo = intron_len % 3
+    i_len = intron[2]-intron[1]+1
+    mod = i_len % 3
 
     if direction in ('+<', '->'):
-        new_frame = (adj_frame - modulo) % 3
+        new_frame = (adj_frame - mod) % 3
     elif direction in ('+>', '-<'):
-        new_frame = (adj_frame + modulo) % 3
+        new_frame = (adj_frame + mod) % 3
 
     pprint('    Calculating frame shift:', level='debug')
     pprint('      Direction is {}'.format(direction), level='debug')
     pprint('      Adjacent exon is in frame {}'.format(adj_frame), level='debug')
-    pprint('      Intron {} is {}bp long, modulo is {}'.format(intron, intron_len, modulo), level='debug')
+    pprint('      Intron {} is {}bp long, modulo is {}'.format(intron, i_len, mod), level='debug')
     pprint('      New frame is {}'.format(new_frame), level='debug')
 
     return new_frame
 
 
 def sort_indeces(index_dict):
-    """Take a dictionary of tuples, remove duplicates and sort by position."""
+    """Take a dictionary of tuples, remove duplicates and sort by value."""
     pprint('\rRemoving duplicates and sorting by position...', end='', level='debug')
+
     for chrom, frames in index_dict.items():
         for n, f in enumerate(frames):
             index_dict[chrom][n] = sorted(set(f))
+
     pprint('\rRemoving duplicates and sorting by position... Done!', level='debug')
 
     return index_dict
@@ -140,18 +149,37 @@ def sort_by_pos(features):
         return sorted(features, key=lambda x: (x[0], int(x[1]), int(x[2])))
 
 
+def calc_score(exon):
+    """Exon score is based on the scores of the adjacent introns. Sum the scores
+    of all the adjacent introns upstream of the exon, then do the same for the
+    adjacent introns downstream of the exon. The exon score is the minimum of
+    these two values."""
+    chrom, left, right, strand = exon
+    left_introns = SITE[(chrom, left-1, strand)]
+    right_introns = SITE[(chrom, right+1, strand)]
+
+    if len(left_introns) * len(right_introns) > 0:
+        l_sum = sum(introns[i] for i in left_introns)
+        r_sum = sum(introns[i] for i in right_introns)
+        return min(l_sum, r_sum)
+    elif len(left_introns) > 0:
+        return sum(introns[i] for i in left_introns)
+    elif len(right_introns) > 0:
+        return sum(introns[i] for i in right_introns)
+
+
 def print_as_gff3(features, out_path, kind='CDS', mode='w'):
-    """Convert the results from a tuple (chromosome, start, end, strand to GFF3
-    format and print.
+    """Take a list of features as a tuple (chromosome, start, end, strand),
+    and print them as GFF3 formatted entries.
     """
     pprint('Printing results to "{}"'.format(out_path), level='debug')
 
     with open(out_path, mode) as f:
-        if 'w' in mode:
+        if 'w' in mode: # print the header only if we're opening a new file
             print('##gff-version 3', file=f)
         for n, feat in enumerate(features):
             chrom, left, right, strand = feat
-            score = '.'
+            score = calc_score(feat)
             phase = '.'
             frame = ','.join(map(str, FRAME[feat]))
             notes = [';frame='+frame if frame != '' else ''][0]
@@ -163,18 +191,20 @@ def print_as_gff3(features, out_path, kind='CDS', mode='w'):
 # Main functions #
 ##################
 def get_translation_blocks(index_f, index_r):
-    """Return dictionaries of TranslationBlock objects. A translation block is
-    defined as the region from a stop codon to the end of the next stop codon.
+    """Return two dictionaries of TranslationBlock objects. A 'translation block'
+    is defined as the region from the first base of the first codon after a stop
+    codon to the last base of the next stop codon in the same reading frame.
 
-    INPUT: Two dictionaries corresponding to the forward and reverse strands of
-    the genome. Keys in each dict are the chromosomes. The values are 3 lists
-    corresponding to each reading frame:
+    INPUT: Two dictionaries corresponding to the indexed positions of all stop
+    codons, putative start codons, and splice sites on the forward and reverse
+    strands of the genome, respectively. Keys in each dict are the chromosomes.
+    The values are 3 lists corresponding to each reading frame:
     index_f = { chromsome: [ [frame0], [frame1], [frame2] ] }
     index_r = { chromsome: [ [frame0], [frame1], [frame2] ] }
 
     RETURN: Two dictionaries (blocks_f, blocks_r), structured the same as the
-    input. Each frame is a list of TranslationBlock objects, which contain the
-    positions of start codons and splice sites within them.
+    input where each of the three lists (for each key) is a list of
+    TranslationBlocks objects in that reading frame.
     """
     sort_by_type = lambda x: sorted(x, key=lambda y: (y[0], y[1]))
     blocks_f = {}
@@ -279,22 +309,22 @@ def get_translation_blocks(index_f, index_r):
 
 
 def get_putative_exons(blocks_f, blocks_r):
-    """Search each translation block and return the coordinates of all possible
-    internal and terminal exons. Also note which reading frame(s) each uses and
-    which intron(s) the exons are adjacent to (for terminal exons only).
+    """Search each translation block and return the genomic coordinates of all
+    possible internal and terminal exons, which reading frame(s) each use, and
+    which intron(s) the exons are adjacent to.
 
-    INPUT: Two dictionaries corresponding to the translation block objects
-    present in each reading frame on forward and reverse strands of the genome.
-    Keys for each dict are the chromosomes. The values are 3 lists corresponding
-    to each reading frame:
+    INPUT: Two dictionaries of TranslationBlock objects on forward and reverse
+    strands of the genome, respectively. Keys for each dict are the chromosomes.
+    Values are three lists corresponding to each reading frame:
     blocks_f = { chromsome: [ [frame0], [frame1], [frame2] ] }
     blocks_r = { chromsome: [ [frame0], [frame1], [frame2] ] }
 
     RETURN:
     1) a set of "internal exons" as tuples in the format: (chromosome, start,
        end, strand).
-    2) two dictionaries of terminal exons where the value is the exon position
-       (chromosome, start, end, strand) and the key is the adjacent intron,
+    2) two dictionaries of terminal exons (one for 5' terminal exons, one for 3'
+       terminal) where the key is the adjacent intron(s) and the value is a set
+       of exon positions as tuples (chromosome, start, end, strand).
     """
     exon_internal = set()
     exon_l_term_dict = defaultdict(set)
@@ -400,6 +430,10 @@ def get_putative_exons(blocks_f, blocks_r):
 
 
 def check_adjacency(exon_list):
+    """Given a list of exons and a dictionary of splice sites and their
+    corresponding introns, return a dictionary where each key is an intron, and
+    the value is two lists of exons that are adjacent to the intron - the first
+    list is exons at the 5' end, the second list is exons at the 3' end."""
     pprint('Building adjacency dict...', level='debug')
     for exon in exon_list:
         chrom, left, right, strand = exon
@@ -415,6 +449,10 @@ def check_adjacency(exon_list):
 
 
 def resolve_internal_frames(exon_list, max_iter=20):
+    """Sometimes a putative internal exon may appear in more than one reading
+    frame. Here we attempt to resolve any abiguous frames by iteratively
+    checking the frame of adjacent exons, and using those to calulate what the
+    frame should be."""
     unresolved = []
     count = 0
     total = len(exon_list)
@@ -488,6 +526,14 @@ def resolve_internal_frames(exon_list, max_iter=20):
 
 
 def terminal_exons_in_phase(exon_internal, exon_l_term_dict, exon_r_term_dict, max_iter=3):
+    """Putative terminal exons can be identified at many loci. Only report ones
+    that A) do not overlap internal exons and B) are in-frame with an adjacent
+    exon.
+
+    If exons could not be indentified on one (or both) sides of a given intron,
+    that intron is ignored, we remove any internal exons that were previously
+    indentifed on the one side and instead look for terminal exons at those
+    positions."""
     # quick function to calculate the length of an exon
     length = lambda x: x[2] - x[1] + 1
 
@@ -758,6 +804,8 @@ def define_gene_ends(features):
 
 
 def get_single_exons(index_f, index_r):
+    """Single exons are defined as regions from putative start codon to stop
+    codon within the same translation block."""
     exon_single = set()
     count = 0
     total = len(index_f)*6 #calculate the number of positions to check
@@ -881,13 +929,16 @@ if __name__ == '__main__':
     if num_unresolved > 0:
         _ = resolve_internal_frames(exon_internal + exon_five_term + exon_three_term)
 
+    # Define gene possible stuctures #
+    #################################
+    ends_f, ends_r, genes = define_gene_ends(list(introns) + exon_internal + exon_five_term + exon_three_term)
+
     # Get all single-exons #
     ########################
-    ends_f, ends_r, genes = define_gene_ends(list(introns) + exon_internal + exon_five_term + exon_three_term)
-    index_f = merge_dicts(index_f, ends_f)
-    index_r = merge_dicts(index_r, ends_r)
-    index_f = sort_indeces(index_f)
-    index_r = sort_indeces(index_r)
+    # index_f = merge_dicts(index_f, ends_f)
+    # index_r = merge_dicts(index_r, ends_r)
+    # index_f = sort_indeces(index_f)
+    # index_r = sort_indeces(index_r)
     # exon_single = get_single_exons(index_f, index_r)
 
     # Output the results #
@@ -909,33 +960,6 @@ if __name__ == '__main__':
     pprint("    {:,} 5' terminal exons".format(len(exon_five_term)))
     pprint("    {:,} 3' terminal exons".format(len(exon_three_term)))
     # pprint('  {:,} single exon genes'.format(len(exon_single)))
-
-    # Report on some specific events #
-    ##################################
-    # pprint('Notes:')
-    # # report any internal exons that don't have an adjacent exon
-    # no_l = set()
-    # no_r = set()
-    # no_both = set()
-    # for intron, adj in ADJ.items():
-    #     chrom, start, end, strand = intron
-    #     l_adj = adj[0]
-    #     r_adj = adj[1]
-    #     if len(l_adj) < 1 and len(r_adj) < 1: # intron has no exons on either side
-    #         no_both.add(intron)
-    #     elif len(l_adj) < 1: # intron has no exons on upstream side
-    #         no_l = no_l | r_adj
-    #     elif len(r_adj) < 1: # intron has no exons on downstream side
-    #         no_r = no_r | l_adj
-    # no_l = sort_by_pos(no_l)
-    # no_r = sort_by_pos(no_r)
-    # no_both = sort_by_pos(no_both)
-    # print_as_gff3(no_l, PREFIX + '.no_upstream.gff3')
-    # print_as_gff3(no_r, PREFIX + '.no_downstream.gff3')
-    # print_as_gff3(no_both, PREFIX + '.alone_introns.gff3', kind='intron')
-    # pprint('  {:,} introns have no adjacent upstream exon'.format( len(no_l)))
-    # pprint('  {:,} introns have no adjacent downstream exon'.format( len(no_r)))
-    # pprint('  {:,} introns have no adjacent exons at all'.format( len(no_both)))
 
     # Finish up #
     #############
