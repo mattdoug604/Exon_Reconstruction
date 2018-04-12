@@ -42,7 +42,7 @@ def parse_gff3(path, region=None):
                 continue
             # make sure the score meets the minimum
             if line[5] != '.':
-                count = float(line[5])
+                count = int(line[5])
             else:
                 count = 0.0
             # if the feature is outside the specified region, skip it
