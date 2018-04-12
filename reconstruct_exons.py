@@ -736,7 +736,7 @@ def terminal_exons_in_phase(exon_internal, exon_l_term_dict, exon_r_term_dict, m
     exon_five_term = list(exon_five_term)
     exon_three_term = list(exon_three_term)
 
-    return exon_internal, exon_five_term, exon_three_term
+    return exon_internal, exon_five_term, exon_three_term, intron_discard
 
 
 def define_gene_ends(features):
@@ -761,7 +761,7 @@ def define_gene_ends(features):
     # find contiguous regions of intron <- internal exon -> intron on each
     # chromosome on each strand
     for region, ranges in temp1.items():
-        ranges = sorted(flatten(((l-1, 1), (r+1, -1)) for l, r in ranges))
+        ranges = sorted(flatten(((l, 1), (r, -1)) for l, r in ranges))
         c, x = 0, 0
         for value, label in ranges:
             if c == 0:
@@ -924,10 +924,11 @@ if __name__ == '__main__':
 
     # Check which terminal exons are in frame #
     ###########################################
-    exon_internal, exon_five_term, exon_three_term = terminal_exons_in_phase(exon_internal, exon_l_term_dict, exon_r_term_dict)
+    exon_internal, exon_five_term, exon_three_term, intron_discard = terminal_exons_in_phase(exon_internal, exon_l_term_dict, exon_r_term_dict)
+    for i in intron_discard:
+        del introns[i]
     # do one more round to use the terminal exons to determine the phase of internal exons
-    if num_unresolved > 0:
-        _ = resolve_internal_frames(exon_internal + exon_five_term + exon_three_term)
+    _ = resolve_internal_frames(exon_internal + exon_five_term + exon_three_term)
 
     # Define gene possible stuctures #
     #################################
