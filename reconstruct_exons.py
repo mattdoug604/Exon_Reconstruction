@@ -21,6 +21,7 @@
 # III:5,547,132-5,547,217 - Missed terminal exon (fixed)
 # X:48,051-48,995 - Two genes, same strand, overlap at the ends - not in frame with each other so the ends get (falsely) discarded as UTRs
 # II:6,490,579-6,491,167 - complex region w/ two "internal" 5' terminal exons
+# I:348,487..353,486 - terminal exon does not have adjacent intron at the end
 #
 # TO DO:
 # V:14895887..14895997 - intron retention in terminal exons, how to deal with?
@@ -167,7 +168,9 @@ def calc_score(exon):
     elif len(right_introns) > 0:
         return sum(INTRON[i] for i in right_introns)
     else:
+        # return 0
         raise KeyError('No adjacent intron(s) found for exon: {}:{}-{}{}'.format(*exon))
+        sys.exit(1)
 
 
 def print_as_gff3(features, out_path, kind='CDS', mode='w'):
@@ -252,9 +255,9 @@ def get_translation_blocks(index_f, index_r):
                         empty_blocks_f[chrom][frame].append(block)
                     # DEBUG
                     pprint('  {}:{:,}-{:,} (+ strand)'.format(chrom, block.start, block.end), level='debug')
-                    pprint("    5' splicesites:", ' '.join(map(str, block.l_sites)), level='debug')
-                    pprint("    3' splicesites:", ' '.join(map(str, block.r_sites)), level='debug')
-                    pprint("    start sites:", ' '.join(map(str, block.s_sites)), level='debug')
+                    if len(block.l_sites) > 0: pprint("    5' splicesites:", ' '.join(map(str, block.l_sites)), level='debug')
+                    if len(block.r_sites) > 0: pprint("    3' splicesites:", ' '.join(map(str, block.r_sites)), level='debug')
+                    if len(block.s_sites) > 0: pprint("    start sites:", ' '.join(map(str, block.s_sites)), level='debug')
                     # reset
                     num_blks += 1
                     last = pos
@@ -287,9 +290,9 @@ def get_translation_blocks(index_f, index_r):
                         empty_blocks_r[chrom][frame].append(block)
                     # DEBUG
                     pprint('  {}:{:,}-{:,} (- strand)'.format(chrom, block.start, block.end), level='debug')
-                    pprint("    5' splicesites:", ' '.join(map(str, block.l_sites)), level='debug')
-                    pprint("    3' splicesites:", ' '.join(map(str, block.r_sites)), level='debug')
-                    pprint("    start sites:", ' '.join(map(str, block.s_sites)), level='debug')
+                    if len(block.l_sites) > 0: pprint("    5' splicesites:", ' '.join(map(str, block.l_sites)), level='debug')
+                    if len(block.r_sites) > 0: pprint("    3' splicesites:", ' '.join(map(str, block.r_sites)), level='debug')
+                    if len(block.s_sites) > 0: pprint("    start sites:", ' '.join(map(str, block.s_sites)), level='debug')
                     # reset
                     num_blks += 1
                     last = pos
@@ -302,7 +305,7 @@ def get_translation_blocks(index_f, index_r):
     temp_f = merge_dicts(blocks_f, empty_blocks_f)
     temp_r = merge_dicts(blocks_r, empty_blocks_r)
     out_path = '{}.translation_blocks.gff3'.format(PREFIX)
-    print_as_gff3([], out_path, mode='w') # create a new file
+    #print_as_gff3([], out_path, mode='w') # create a new file
     for d, strand, suf in ((temp_f, '+', 'plus'), (temp_r, '-', 'minus')):
         temp = [ [], [], [] ]
         for chrom, frames in d.items():
@@ -310,7 +313,7 @@ def get_translation_blocks(index_f, index_r):
                 temp[frame] += [(chrom, i.start, i.end, strand) for i in blocks]
         for frame, blocks in enumerate(temp):
             blocks = sort_by_pos(blocks)
-            print_as_gff3(blocks, out_path, kind=suf+str(frame), mode='a')
+            #print_as_gff3(blocks, out_path, kind=suf+str(frame), mode='a')
 
     return blocks_f, blocks_r
 
@@ -531,7 +534,7 @@ def resolve_internal_frames(exon_list, max_iter=20):
            .format(len(unresolved), percent(len(unresolved), len(exon_list))))
 
     # DEBUG: Output internal exons with ambiguous frame
-    print_as_gff3(unresolved, PREFIX+'.internal.multi_frame.gff3')
+    #print_as_gff3(unresolved, PREFIX+'.internal.multi_frame.gff3')
 
     return unresolved
 
@@ -547,16 +550,13 @@ def terminal_exons_in_phase(exon_internal, exon_l_term_dict, exon_r_term_dict, m
     positions."""
     exon_five_term = set()
     exon_three_term = set()
-    five_term_c = 0
-    three_term_c = 0
     intron_discard = set()
     exon_discard = set()
-    # work with shallow copies of global variables
-    adj_lcl = ADJ.copy()
-    site_lcl = SITE.copy()
+    global ADJ
+    global SITE
     # for keeping track of progress
     count = 0
-    total = len(adj_lcl)
+    total = len(ADJ)
     # quick function to calculate the length of an exon
     length = lambda x: x[2] - x[1] + 1
     # for DEBUG-ing
@@ -568,7 +568,7 @@ def terminal_exons_in_phase(exon_internal, exon_l_term_dict, exon_r_term_dict, m
     for n in range(max_iter):
         pprint('\nStarting iteration {}:'.format(n+1), level='debug')
         new_adj = {}
-        for intron, adj in adj_lcl.items():
+        for intron, adj in ADJ.items():
             pprint('\rChecking which terminal exons are in phase...',
                    percent(count/max_iter, total), end='', level='progress')
             chrom, l, r, strand = intron
@@ -581,7 +581,7 @@ def terminal_exons_in_phase(exon_internal, exon_l_term_dict, exon_r_term_dict, m
             results = []
             match = None
             count += 1
-            ########################################################################
+            ####################################################################
             if len(l_adj) < 1 and len(r_adj) < 1:
                 pprint('Looking on both sides of intron at {}'.format(intron), level='debug')
                 new_adj[intron] = [ set(), set() ]
@@ -632,15 +632,15 @@ def terminal_exons_in_phase(exon_internal, exon_l_term_dict, exon_r_term_dict, m
                     single_intron.append(final[0])
                     single_intron.append(final[1])
                 else:
-                    pprint('  No valid ORF found!', level='debug')
+                    pprint('  No valid ORF found! Delete intron', intron, level='debug')
                     del new_adj[intron]
                     intron_discard.add(intron)
-            ########################################################################
+            ####################################################################
             elif len(l_adj) < 1:
                 pprint('Looking upstream of intron at {}'.format(intron), level='debug')
                 new_adj[intron] = [ set(), r_adj ]
-                # determine what the expected frame(s) should be based on adjacent
-                # internal exons
+                # determine what the expected frame(s) should be based on
+                # adjacent internal exons
                 for exon in r_adj:
                     for f in FRAME[exon]:
                         new_f = frame_shift(f, intron, strand+'<')
@@ -665,18 +665,19 @@ def terminal_exons_in_phase(exon_internal, exon_l_term_dict, exon_r_term_dict, m
                                .format(', '.join([str(i) for i in l_compare[f]]), f), level='debug')
                         pprint('  Longest is {}'.format(match), level='debug')
                 if match is None:
-                    pprint('  No valid upstream exon found!', level='debug')
+                    pprint('  No valid upstream exon found! Delete intron', intron, level='debug')
                     del new_adj[intron]
                     intron_discard.add(intron)
-            ########################################################################
+            ####################################################################
             elif len(r_adj) < 1:
                 pprint('Looking downstream of intron at {}'.format(intron), level='debug')
                 new_adj[intron] = [ l_adj, set() ]
-                # determine what the expected frame(s) should be based on adjacent
-                # internal exons
+                # determine what the expected frame(s) should be based on
+                # adjacent internal exons
                 for exon in l_adj:
                     for f in FRAME[exon]:
                         new_f = frame_shift(f, intron, strand+'>')
+                        pprint('  Upstream exon {}, frame {}'.format(exon, f), level='debug')
                         expected.add(new_f)
                 pprint('  Expect adjacent frames to be one of: {}'.format(expected), level='debug')
                 # only keep the longest exon(s) that match the expected frame(s)
@@ -697,53 +698,115 @@ def terminal_exons_in_phase(exon_internal, exon_l_term_dict, exon_r_term_dict, m
                                .format(', '.join([str(i) for i in r_compare[f]]), f), level='debug')
                         pprint('  Longest is {}'.format(match), level='debug')
                 if match is None:
-                    pprint('  No valid downstream exon found!', level='debug')
+                    pprint('  No valid downstream exon found! Delete intron', intron, level='debug')
                     del new_adj[intron]
                     intron_discard.add(intron)
-            ########################################################################
+            ####################################################################
             else:
                 pprint('Intron at {} is already flanked by exons. Continue.'.format(intron), level='debug')
                 new_adj[intron] = [ l_adj, r_adj ]
 
-        if new_adj == adj_lcl:
+        if new_adj == ADJ:
             pprint('No change. Stopping iterations.', level='debug')
             break
 
         pprint('Updating adjacency dictionary...', level='debug')
-        adj_lcl = new_adj
-        site_lcl = defaultdict(list)
+        ADJ = new_adj
+        SITE = defaultdict(list)
         for intron in new_adj:
             chrom, left, right, strand = intron
-            site_lcl[(chrom, left, strand)].append(intron)
-            site_lcl[(chrom, right, strand)].append(intron)
+            SITE[(chrom, left, strand)].append(intron)
+            SITE[(chrom, right, strand)].append(intron)
 
+        # remove exons from the ADJ dictionary
         pprint('Removing internal exons without adjacent introns...', level='debug')
-        temp = []
+        temp = set()
         for exon in exon_internal:
             chrom, left, right, strand = exon
-            left_introns = site_lcl[(chrom, left-1, strand)]
-            right_introns = site_lcl[(chrom, right+1, strand)]
+            left_introns = SITE[(chrom, left-1, strand)]
+            right_introns = SITE[(chrom, right+1, strand)]
             if len(left_introns) * len(right_introns) > 0:
                 pprint('  Keeping exon', exon, level='debug')
-                temp.append(exon)
+                temp.add(exon)
             else:
                 pprint('  Discarding exon', exon, level='debug')
                 exon_discard.add(exon)
                 # remove the exon from the adj dict
                 for intron in left_introns + right_introns:
-                    if intron in adj_lcl:
-                        adj_lcl[intron][0].discard(exon)
-                        adj_lcl[intron][1].discard(exon)
+                    if intron in ADJ:
+                        ADJ[intron][0].discard(exon)
+                        ADJ[intron][1].discard(exon)
         exon_internal = temp
+
+        pprint("Removing 5' terminal exons exons without adjacent introns...", level='debug')
+        temp = set()
+        for exon in exon_five_term:
+            chrom, left, right, strand = exon
+            if strand == '+':
+                right_introns = SITE[(chrom, right+1, strand)]
+                if len(right_introns) > 0:
+                    pprint('  Keeping exon', exon, level='debug')
+                    temp.add(exon)
+                else:
+                    pprint('  Discarding exon', exon, level='debug')
+                    exon_discard.add(exon)
+                    # remove the exon from the adj dict
+                    for intron in right_introns:
+                        if intron in ADJ:
+                            ADJ[intron][0].discard(exon)
+            elif strand == '-':
+                left_introns = SITE[(chrom, left-1, strand)]
+                if len(left_introns) > 0:
+                    pprint('  Keeping exon', exon, level='debug')
+                    temp.add(exon)
+                else:
+                    pprint('  Discarding exon', exon, level='debug')
+                    exon_discard.add(exon)
+                    # remove the exon from the adj dict
+                    for intron in left_introns:
+                        if intron in ADJ:
+                            ADJ[intron][1].discard(exon)
+        exon_five_term = temp
+
+        pprint("Removing 3' terminal exons exons without adjacent introns...", level='debug')
+        temp = set()
+        for exon in exon_three_term:
+            chrom, left, right, strand = exon
+            if strand == '+':
+                left_introns = SITE[(chrom, left-1, strand)]
+                if len(left_introns) > 0:
+                    pprint('  Keeping exon', exon, level='debug')
+                    temp.add(exon)
+                else:
+                    pprint('  Discarding exon', exon, level='debug')
+                    exon_discard.add(exon)
+                    # remove the exon from the adj dict
+                    for intron in left_introns:
+                        if intron in ADJ:
+                            ADJ[intron][1].discard(exon)
+            elif strand == '-':
+                right_introns = SITE[(chrom, right+1, strand)]
+                if len(right_introns) > 0:
+                    pprint('  Keeping exon', exon, level='debug')
+                    temp.add(exon)
+                else:
+                    pprint('  Discarding exon', exon, level='debug')
+                    exon_discard.add(exon)
+                    # remove the exon from the adj dict
+                    for intron in right_introns:
+                        if intron in ADJ:
+                            ADJ[intron][0].discard(exon)
+        exon_three_term = temp
 
     pprint('\rChecking which terminal exons are in phase... Done!  ')
     pprint("  {:,} 5' terminal exons".format(len(exon_five_term)))
     pprint("  {:,} 3' terminal exons".format(len(exon_three_term)))
 
-    print_as_gff3(single_intron, PREFIX+'.double.gff3') # DEBUG
-    print_as_gff3(intron_discard, PREFIX+'.non_coding_introns.gff3', kind='intron') # DEBUG
-    print_as_gff3(exon_discard, PREFIX+'.terminal_removed.gff3') # DEBUG
+    # print_as_gff3(single_intron, PREFIX+'.double.gff3') # DEBUG
+    # print_as_gff3(intron_discard, PREFIX+'.non_coding_introns.gff3', kind='intron') # DEBUG
+    # print_as_gff3(exon_discard, PREFIX+'.terminal_removed.gff3') # DEBUG
 
+    exon_internal = list(exon_internal)
     exon_five_term = list(exon_five_term)
     exon_three_term = list(exon_three_term)
 
@@ -809,7 +872,7 @@ def define_gene_ends(features):
                 elif kind == 3:
                     pprint('right side of gene at: {}:{:,} ({} strand)'.format(chrom, pos, s), level='debug')
 
-    print_as_gff3(genes, PREFIX+'.genes.gff3', kind='gene')
+    #print_as_gff3(genes, PREFIX+'.genes.gff3', kind='gene')
 
     return ends_f, ends_r, genes
 
