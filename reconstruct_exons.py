@@ -105,22 +105,22 @@ def merge_dicts(x, y):
     return z
 
 
-def frame_shift(adj_frame, intron, direction):
+def frame_shift(frame, intron, direction):
     """Calculate the frame a given exon uses based on the frame of the adjacent
     exon and the lenght of the intervening intron.
     """
     i_len = intron[2]-intron[1]+1
-    mod = i_len % 3
+    i_mod = i_len % 3
 
     if direction in ('+<', '->'):
-        new_frame = (adj_frame - mod) % 3
+        new_frame = (frame - i_mod) % 3
     elif direction in ('+>', '-<'):
-        new_frame = (adj_frame + mod) % 3
+        new_frame = (frame + i_mod) % 3
 
     pprint('    Calculating frame shift:', level='debug')
     pprint('      Direction is {}'.format(direction), level='debug')
-    pprint('      Adjacent exon is in frame {}'.format(adj_frame), level='debug')
-    pprint('      Intron {} is {}bp long, modulo is {}'.format(intron, i_len, mod), level='debug')
+    pprint('      Exon is in frame {}'.format(frame), level='debug')
+    pprint('      Intron {} is {}bp long, modulo is {}'.format(intron, i_len, i_mod), level='debug')
     pprint('      New frame is {}'.format(new_frame), level='debug')
 
     return new_frame
@@ -496,7 +496,10 @@ def resolve_internal_frames(exon_list, max_iter=20):
                     if len(adj_frames) != 1:
                         pprint('  Determining frame for exon {}, frames: {}'.format(adj_exon, adj_frames), level='debug')
                         new_frame = frame_shift(frame, intron, strand+'<')
-                        new_FRAME[adj_exon].add(new_frame)
+                        if new_frame in adj_frames: # avoid conflicts where incompatible adjacent exons assign the wrong frame
+                            new_FRAME[adj_exon].add(new_frame)
+                        else:
+                            pprint('    Conflict: frame {} is not a valid choice {}'.format(new_frame, adj_frames), level='debug')
             ####################################################################
             for intron in right_introns:
                 pprint('  Looking for exons adjacent to downstream intron {}...'.format(intron), level='debug')
@@ -505,7 +508,10 @@ def resolve_internal_frames(exon_list, max_iter=20):
                     if len(adj_frames) != 1:
                         pprint('  Determining frame for exon {}, frames {}:'.format(adj_exon, adj_frames), level='debug')
                         new_frame = frame_shift(frame, intron, strand+'>')
-                        new_FRAME[adj_exon].add(new_frame)
+                        if new_frame in FRAME[adj_exon]:
+                            new_FRAME[adj_exon].add(new_frame)
+                        else:
+                            pprint('    Conflict: frame {} is not a valid choice ({})'.format(new_frame, adj_frames), level='debug')
 
         # update reading frames
         pprint('\nSummary of frame changes:', level='debug')
