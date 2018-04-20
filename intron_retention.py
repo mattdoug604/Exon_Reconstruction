@@ -31,7 +31,6 @@ def id_events(introns, exons):
     temp_introns = defaultdict(set)
     temp_exons = defaultdict(set)
     ret_intron_dict = defaultdict(set)
-    count = 0
 
     # convert the sets to dicts so you dont have to iterate through the whole list
     for i in introns:
@@ -53,10 +52,9 @@ def id_events(introns, exons):
             for e in exons:
                 if i[0] > e[0] and i[1] < e[1]:
                     ret_intron_dict[intron].add(e)
-                    count += 1
                     pprint('  exon {} overlaps intron {}'.format(e, intron), level="debug")
     pprint('\rIdentifying intron retention events... Done!')
-    pprint('  {:,} intron retention events identfied'.format(count))
+    pprint('  {:,} intron retention events identfied'.format(len(ret_intron_dict)))
 
     return ret_intron_dict
 
