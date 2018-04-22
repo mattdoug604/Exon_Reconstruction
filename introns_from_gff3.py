@@ -112,7 +112,8 @@ def get_introns(args):
     intron_dict = defaultdict(int)
     splice_f = {}
     splice_r = {}
-    site_dict = defaultdict(list)
+    site_l = defaultdict(list)
+    site_r = defaultdict(list)
 
     intron_dict = parse_gff3(gff_path, region)
 
@@ -141,13 +142,13 @@ def get_introns(args):
                     splice_r[chrom][n].append((right, 2))
         # keep track of introns sharing a splice site
         try:
-            site_dict[(chrom, left, strand)].append(intron)
+            site_l[(chrom, left, strand)].append(intron)
         except KeyError:
-            site_dict[(chrom, left, strand)] = [intron]
+            site_l[(chrom, left, strand)] = [intron]
         try:
-            site_dict[(chrom, right, strand)].append(intron)
+            site_r[(chrom, right, strand)].append(intron)
         except KeyError:
-            site_dict[(chrom, right, strand)] = [intron]
+            site_r[(chrom, right, strand)] = [intron]
     pprint('\rIndexing splice sites... Done!', level='debug')
 
-    return intron_dict, splice_f, splice_r, site_dict
+    return intron_dict, splice_f, splice_r, site_l, site_r
