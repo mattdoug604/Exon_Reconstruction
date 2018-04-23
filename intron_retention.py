@@ -17,6 +17,7 @@ def pprint(*args, **kwargs):
         if not QUIET:
             print(*args, **kwargs)
 
+
 def perc(count, total):
     if total == 0:
         return '0%'
