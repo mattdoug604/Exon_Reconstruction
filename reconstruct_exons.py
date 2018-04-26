@@ -40,6 +40,8 @@ from parse_exon_index import parse_index
 from introns_from_gff3 import get_introns
 import intron_retention
 
+VERSION="18.1"
+
 #####################
 # Class definitions #
 #####################
@@ -186,6 +188,7 @@ def print_as_gff3(features, out_path, kind='CDS', mode='w'):
     with open(out_path, mode) as f:
         if 'w' in mode: # print the header only if we're opening a new file
             print('##gff-version 3', file=f)
+            print('##{} v{}'.format(sys.argv[0], VERSION), file=f)
         for n, feat in enumerate(features):
             chrom, left, right, strand = feat
             if kind == 'CDS':
