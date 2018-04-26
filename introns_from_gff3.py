@@ -60,7 +60,7 @@ def parse_gff3(path, region=None):
     pprint('  Found {:,} valid introns:'.format(f_count + r_count))
     pprint('    {:,} on the + strand'.format(f_count))
     pprint('    {:,} on the - strand'.format(r_count))
-    if len(discard) > 0: pprint('  Discarded {:,} introns without a defined strand'.format(discard))
+    if discard > 0: pprint('  Discarded {:,} introns without a defined strand'.format(discard))
 
     return intron_dict
 
