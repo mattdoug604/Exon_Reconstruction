@@ -1,5 +1,5 @@
 #!/home2/mattdoug/python3/bin/python3
-# Last updated: 16/2/2018
+# Last updated: 25/4/2018
 # Author: Matt Douglas
 
 # Purpose: Get the coordinates of each intron from a GFF3 file, and index the
@@ -60,7 +60,7 @@ def parse_gff3(path, region=None):
     pprint('  Found {:,} valid introns:'.format(f_count + r_count))
     pprint('    {:,} on the + strand'.format(f_count))
     pprint('    {:,} on the - strand'.format(r_count))
-    pprint('  Discarded {:,} introns without a defined strand'.format(discard))
+    if len(discard) > 0: pprint('  Discarded {:,} introns without a defined strand'.format(discard))
 
     return intron_dict
 
@@ -91,13 +91,6 @@ def parse_CIGAR(pos, cigar):
         introns.append([start, end])
 
     return introns
-
-
-def sort_features(features):
-    """Sort tuples of introns by chromosome, then start position, then end
-    position. NOTE: Wormbase uses roman numerals for chromosomes names.
-    """
-    return sorted(features, key=lambda x: (x[0], int(x[1]), int(x[2])))
 
 
 def get_introns(args):
