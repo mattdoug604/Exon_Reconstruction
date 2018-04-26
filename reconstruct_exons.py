@@ -924,7 +924,7 @@ if __name__ == '__main__':
     # Get all putative internal and terminal positions #
     ####################################################
     exon_intrnl, exon_l_term_dict, exon_r_term_dict = get_putative_exons(blocks_f, blocks_r)
-    #exon_intrnl, _ = intron_retention.filter(args, INTRON, exon_intrnl)
+    exon_intrnl, _ = intron_retention.filter(args, INTRON, exon_intrnl)
     check_adjacency(exon_intrnl)
 
     # Try and resolve ambiguous phase for internal exons #
