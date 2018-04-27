@@ -1,20 +1,18 @@
 #!/home2/mattdoug/python3/bin/python3
-# Last updated: 23/4/2018
+# Last updated: 27/4/2018
 # Author: Matt Douglas
 #
 # PURPOSE: Reconstruct protein-coding exons from a reference genome and RNA-seq
 # data.
 #
-# UPDATES: In this version, exons are scored based on the score of the adjacent
-# intron(s).
+# UPDATES: Fixed issue with overlapping 5' and 3' splice sites; removed
+# single-exon gene identification; simplified define_genes()
 #
 # MY NOTES:
 # I:217,489..219,488 - example of resolved 2-exon gene
 # X:2,412,849..2,413,848 - example of incorrect 2-exon gene
-# III:3,562,617..3,582,616 - PacBio reads support alt intron w/ 2 support
-# I:5,564,625..5,565,624 - missing internal exon due to phase incompatibility?
 # X:13,397,323..13,397,775 - gene with 2 introns, but only 1 is part of coding exons
-# II:1,889,845..1,890,844 - what's going on here?
+# II:1,889,845..1,890,844 - Internal exon w/ multiple frames makes multiple 5' terminal exons
 # I:506,491..508,490 - False intron retention events?
 # II:8,042,500..8,043,100 - intron retention in 5' terminal exon
 # II:1,918,871-1,919,297 - 1bp "intron" introduces stop codon
@@ -29,7 +27,8 @@
 #                      - Note: tried 'bedtools coverage' to get read depth for
 #                        intron retention events, but it seems to be just as
 #                        slow (if not slower))
-# Simplify define_gene_ends() to be more memory efficient?
+# Define terminal exon boundaries by coverage?
+# Improve mem. usage: use dicts for internal exons, NumPy?
 
 from collections import defaultdict
 from itertools import chain, product
@@ -59,7 +58,7 @@ class TranslationBlock(object):
         self.s_sites = [] # start codons
 
     def has_splice_site(self):
-        if len(self.l_sites) * len(self.r_sites) > 0:
+        if any((self.l_sites, self.r_sites)):
             return True
         else:
             return False
@@ -188,7 +187,7 @@ def print_as_gff3(features, out_path, kind='CDS', mode='w'):
     with open(out_path, mode) as f:
         if 'w' in mode: # print the header only if we're opening a new file
             print('##gff-version 3', file=f)
-            print('##{} v{}'.format(sys.argv[0], VERSION), file=f)
+            print('##{} version_{}'.format(sys.argv[0], VERSION), file=f)
         for n, feat in enumerate(features):
             chrom, left, right, strand = feat
             if kind == 'CDS':
@@ -198,7 +197,7 @@ def print_as_gff3(features, out_path, kind='CDS', mode='w'):
             else:
                 score = '.'
             frame = ','.join(map(str, FRAME[feat]))
-            notes = [';frame='+frame if frame != '' else ''][0]
+            notes = [';Frame='+frame if frame != '' else ''][0]
             line = chrom, '.', kind, left, right, score, strand, '.', 'ID={}{}{}'.format(kind, n+1, notes)
             print(*line, sep='\t', file=f)
 
@@ -227,7 +226,8 @@ def get_translation_blocks(index_f, index_r):
     blocks_r = {}
     empty_blocks_f = {}
     empty_blocks_r = {}
-    num_blks = 0
+    total_blk = 0
+    empty_blk = 0
     count = 0
     total = len(index_f)*6 #calculate the number of positions to check
 
@@ -259,12 +259,13 @@ def get_translation_blocks(index_f, index_r):
                         blocks_f[chrom][frame].append(block)
                     else:
                         empty_blocks_f[chrom][frame].append(block)
+                        empty_blk += 1
                     pprint('  {}:{:,}-{:,} (+ strand)'.format(chrom, block.start, block.end), level='debug')
                     if len(block.l_sites) > 0: pprint("    5' splicesites:", ' '.join(map(str, block.l_sites)), level='debug')
                     if len(block.r_sites) > 0: pprint("    3' splicesites:", ' '.join(map(str, block.r_sites)), level='debug')
                     if len(block.s_sites) > 0: pprint("    start sites:", ' '.join(map(str, block.s_sites)), level='debug')
                     # reset
-                    num_blks += 1
+                    total_blk += 1
                     last = pos
                     block = TranslationBlock()
     ############################################################################
@@ -293,17 +294,19 @@ def get_translation_blocks(index_f, index_r):
                         blocks_r[chrom][frame].append(block)
                     else:
                         empty_blocks_r[chrom][frame].append(block)
+                        empty_blk += 1
                     pprint('  {}:{:,}-{:,} (- strand)'.format(chrom, block.start, block.end), level='debug')
                     if len(block.l_sites) > 0: pprint("    5' splicesites:", ' '.join(map(str, block.l_sites)), level='debug')
                     if len(block.r_sites) > 0: pprint("    3' splicesites:", ' '.join(map(str, block.r_sites)), level='debug')
                     if len(block.s_sites) > 0: pprint("    start sites:", ' '.join(map(str, block.s_sites)), level='debug')
                     # reset
-                    num_blks += 1
+                    total_blk += 1
                     last = pos
                     block = TranslationBlock()
 
     pprint('\rIdentifying all translation blocks... Done!    ')
-    pprint('  {:,} translation blocks'.format(num_blks))
+    pprint('  {:,} translation blocks'.format(total_blk))
+    pprint('  {:,} translation blocks with a splice site'.format(total_blk - empty_blk))
 
     # DEBUG: output all the translation blocks
     temp_f = merge_dicts(blocks_f, empty_blocks_f)
@@ -826,15 +829,13 @@ def terminal_exons_in_phase(exon_intrnl, exon_l_term_dict, exon_r_term_dict, max
     return exon_intrnl, exon_five_term, exon_three_term, intron_discard
 
 
-def define_gene_ends(introns, exon_intrnl, exon_l_term_dict, exon_r_term_dict):
-    """Return gene boundaries (i.e. contigous regions of internal exons,
-    terminal exons, and introns.
+def define_genes(introns, exon_intrnl, exon_l_term_dict, exon_r_term_dict):
+    """Define coding gene boundaries (i.e. contigous regions of exons joined by
+    introns).
     """
     flatten = chain.from_iterable
     temp = defaultdict(list)
-    ends_f = {}
-    ends_r = {}
-    genes = {}
+    genes = []
 
     pprint('', level='debug')
     pprint('Defining putative gene boundaries', end='')
@@ -845,52 +846,26 @@ def define_gene_ends(introns, exon_intrnl, exon_l_term_dict, exon_r_term_dict):
             chrom, l, r, strand = i
             temp[(chrom, strand)].append((l, r, n))
 
-    # find contiguous regions of intron <- internal exon -> intron on each
-    # chromosome on each strand
+    # find contiguous regions of exons joined by introns
     for region, ranges in temp.items():
-        ranges = sorted(flatten(((l-1, r, n, 1), (r+1, l, n, -1)) for l, r, n in ranges))
-        c, x = 0, 0
-        temp2 = {0:set(), 1:set(), 2:set(), 3:set()}
-        for value, mate, kind, label in ranges:
-            if c == 0:
+        ranges = sorted(flatten(((l-1, n, 1), (r+1, n, -1)) for l, r, n in ranges))
+        c = 0
+        x, y = None, None
+        for value, kind, label in ranges:
+            if c == 0 and kind in (2, 3):
                 x = value
+            elif c != 0 and kind in (2, 3):
+                y = value - 1
             c += label
-            if label == 1:
-                temp2[kind].add((region[0], value+1, mate, region[1]))
-            else:
-                temp2[kind].add((region[0], mate, value-1, region[1]))
             if c == 0:
-                genes[(region[0], x+1, value-1, region[1])] = dict(temp2)
-                temp2 = {0:set(), 1:set(), 2:set(), 3:set()}
-
-    # treat the ends of genes as "pseudo-splice sites" that we'll use to find
-    # single-exon genes
-    for g in genes:
-        chrom, left, right, strand = g
-        d = [ends_f if strand == '+' else ends_r][0]
-        for n in range(3):
-            try:
-                d[chrom][n].append((left, 2))
-                d[chrom][n].append((right, 3))
-            except KeyError:
-                d[chrom] = [ [], [], [] ]
-                d[chrom][n].append((left, 2))
-                d[chrom][n].append((right, 3))
+                if all((x, y)):
+                    genes.append((region[0], x+1, y, region[1]))
+                x, y = None, None
 
     pprint('\rDefining putative gene boundaries... Done!')
     pprint('  {:,} multi-exon genes found'.format(len(genes)))
 
-    for d, s in ((ends_f, '+'), (ends_r, '-')):
-        for chrom, frames in d.items():
-            for pos, kind in frames[0]:
-                if kind == 2:
-                    pprint('left side of gene at: {}:{:,} ({} strand)'.format(chrom, pos, s), level='debug')
-                elif kind == 3:
-                    pprint('right side of gene at: {}:{:,} ({} strand)'.format(chrom, pos, s), level='debug')
-
-    print_as_gff3(genes, PREFIX+'.genes.gff3', kind='gene')
-
-    return ends_f, ends_r, genes
+    return genes
 
 
 ############
@@ -938,19 +913,10 @@ if __name__ == '__main__':
         del INTRON[i]
     # do one more round to use the terminal exons to determine the phase of internal exons
     _ = resolve_internal_frames(exon_intrnl + exon_five_term + exon_three_term)
-    check_adjacency(exon_intrnl + exon_five_term + exon_three_term)
 
     # Define gene possible stuctures #
     #################################
-    ends_f, ends_r, genes = define_gene_ends(INTRON, exon_intrnl, exon_five_term, exon_three_term)
-
-    # Get all single-exons #
-    ########################
-    # index_f = merge_dicts(index_f, ends_f)
-    # index_r = merge_dicts(index_r, ends_r)
-    # index_f = sort_indeces(index_f)
-    # index_r = sort_indeces(index_r)
-    # exon_single = get_single_exons(index_f, index_r)
+    genes = define_genes(INTRON, exon_intrnl, exon_five_term, exon_three_term)
 
     # Output the results #
     ######################
@@ -959,18 +925,16 @@ if __name__ == '__main__':
     exon_five_term = sort_by_pos(exon_five_term)
     exon_three_term = sort_by_pos(exon_three_term)
     exon_final = sort_by_pos(exon_intrnl + exon_five_term + exon_three_term)
-    # exon_single = sort_by_pos(exon_single)
+    print_as_gff3(genes, PREFIX+'.genes.gff3', kind='gene')
     print_as_gff3(exon_intrnl, PREFIX+'.internal.gff3')
     print_as_gff3(exon_five_term, PREFIX+'.five_term.gff3')
     print_as_gff3(exon_three_term, PREFIX+'.three_term.gff3')
-    # print_as_gff3(exon_single, PREFIX+'.single.gff3')
     print_as_gff3(exon_final, PREFIX+'.final.gff3')
     pprint('\rOutputting results... Done!')
     pprint('  {:,} multi-exon genes, {:,} exons found'.format(len(genes), len(exon_final)))
     pprint('    {:,} internal exons'.format(len(exon_intrnl)))
     pprint("    {:,} 5' terminal exons".format(len(exon_five_term)))
     pprint("    {:,} 3' terminal exons".format(len(exon_three_term)))
-    # pprint('  {:,} single exon genes'.format(len(exon_single)))
 
     # Finish up #
     #############
