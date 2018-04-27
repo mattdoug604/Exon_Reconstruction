@@ -42,18 +42,21 @@ def id_events(introns, exons):
         temp_exons[(chrom, strand)].add((start, end))
 
     p_total = len(temp_introns)
-    p_count = 0
-
-    for region, introns in temp_introns.items():
-        pprint('\rIdentifying intron retention events... {}'.format(perc(p_count, p_total)), end='')
-        p_count += 1
-        exons = temp_exons[region]
+    for n, region in enumerate(temp_introns):
+        pprint('\rIdentifying intron retention events... {}'.format(perc(n, p_total)), end='')
+        introns = sorted(temp_introns[region])
+        exons = sorted(temp_exons[region]) # sort by position so we can skip to the next introns if we search past the last one
+        last = 0
         for i in introns:
             intron = region[0], i[0], i[1], region[1]
-            for e in exons:
-                if i[0] > e[0] and i[1] < e[1]:
+            for m, e in enumerate(exons[last:]):
+                if e[0] < i[0] and i[1] < e[1]:
                     ret_intron_dict[intron].add(e)
                     pprint('  exon {} overlaps intron {}'.format(e, intron), level="debug")
+                elif i[1] < e[0] - 1:
+                    break
+                elif e[1] < i[0]:
+                    last = m
     pprint('\rIdentifying intron retention events... Done!')
     pprint('  {:,} intron retention events identfied'.format(len(ret_intron_dict)))
 
@@ -86,6 +89,7 @@ def filter_by_coverage(bamfile, ret_intron_dict, introns, min_depth, min_cov, mi
                     depth += 1
                     if depth >= min_depth:
                         has_cov = True
+                        break
             if not has_cov:
                 bp_no_cov += 1
             if (bp_no_cov / length) > min_no_cov: # goto next feature if exceeds minimum % of no coverage
