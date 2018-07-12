@@ -188,15 +188,14 @@ def check_for_overlap(exon_set, ref_match):
 # Main loop #
 #############
 if __name__ == '__main__':
-    qry_prefix = sys.argv[1] # prefix for reconstructed exon files
+    qry_prefix = sys.argv[1]
     ref_prefix = '/home2/mattdoug/Thesis/reference/categorized_exons_by_type/coding'
     ref_nc_prefix = '/home2/mattdoug/Thesis/reference/categorized_exons_by_type/non_coding'
     out_prefix = 'validate'
     print_exons = True
     quiet = True
 
-    #suffix = ['internal', 'five_term', 'three_term', 'single']
-    suffix = ['internal', 'five_term', 'three_term']
+    suffix = ['internal', 'five_term', 'three_term'] # +['single']
     categories = 'total', 'exact', 'op_strand', 'diff_five_end', 'diff_three_end', 'overlap', 'no_overlap', 'total ref', 'missed'
     results = {i+n:{} for i in categories for n in ('', '_nc')}
 

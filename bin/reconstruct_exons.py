@@ -34,12 +34,12 @@ from collections import defaultdict
 from itertools import chain, product
 import argparse, re, sys
 import pysam
-from main import parse_arguments
+from reconstruct_exons-main import parse_arguments
 from parse_exon_index import parse_index
 from introns_from_gff3 import get_introns
 import intron_retention
 
-VERSION="18.1"
+VERSION="0.18.1"
 
 #####################
 # Class definitions #
