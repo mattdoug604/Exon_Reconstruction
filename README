@@ -1,3 +1,2 @@
-All the python scripts required to run the exon reconstruction pipeline are in "bin"
+# Reconstruct protein coding exons from RNA-Seq data
 
-Other unvalidated or one-off scripts I am working on are in "experimental" 
