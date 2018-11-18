@@ -1,12 +1,11 @@
-#!/home2/mattdoug/python3/bin/python3
-# Last updated: 25/4/2018
+#!/home2/mattdoug/bin/python3
+# Last updated: 18/11/2018
 # Author: Matt Douglas
 
 # Purpose: Get the coordinates of each intron from a GFF3 file, and index the
 # positions of each individual splice site.
 
 import sys
-import pysam
 import logging
 from collections import defaultdict
 
@@ -52,51 +51,20 @@ def parse_gff3(path, region=None):
             else:
                 intron_dict[intron] = count
 
-    log.info('  Found {:,} valid introns:'.format(f_count + r_count))
-    log.info('    {:,} on the + strand'.format(f_count))
-    log.info('    {:,} on the - strand'.format(r_count))
-    if discard > 0: log.info('  Discarded {:,} introns without a defined strand'.format(discard))
+    log.debug('  Found {:,} valid introns:'.format(f_count + r_count))
+    log.debug('    {:,} on the + strand'.format(f_count))
+    log.debug('    {:,} on the - strand'.format(r_count))
+    if discard > 0: log.debug('  Discarded {:,} introns without a defined strand'.format(discard))
 
     return intron_dict
 
 
-def parse_CIGAR(pos, cigar):
-    """Get the pos, end, and size of any introns from the CIGAR string.
-    if(  cigar_type == 0): #match
-    elif(cigar_type == 1): #insertions
-    elif(cigar_type == 2): #deletion
-    elif(cigar_type == 3): #skip
-    elif(cigar_type == 4): #soft clipping
-    elif(cigar_type == 5): #hard clipping
-    elif(cigar_type == 6): #padding
-    """
-    introns = list()
-
-    cigar_type = [i[0] for i in cigar]
-    cigar_len = [i[1] for i in cigar]
-
-    for i in [i for i, l in enumerate(cigar_type) if l == 3]:
-        size = cigar_len[i]
-        start = pos
-        for j in range(len(cigar_type[:i])):
-            if cigar_type[j] in [0, 2, 3]:
-                start += cigar_len[j]
-        end = start + size - 1
-
-        introns.append([start, end])
-
-    return introns
-
-
 def get_introns(args):
-    global QUIET
-    global DEBUG
     QUIET = args.quiet
     DEBUG = args.debug
     PREFIX = args.output
     gff_path = args.introns
     region = args.region
-    ref_set = None
     intron_dict = defaultdict(int)
     splice_f = {}
     splice_r = {}
@@ -137,6 +105,5 @@ def get_introns(args):
             site_r[(chrom, right, strand)].append(intron)
         except KeyError:
             site_r[(chrom, right, strand)] = [intron]
-    log.debug('Indexing splice sites... Done!')
 
     return intron_dict, splice_f, splice_r, site_l, site_r

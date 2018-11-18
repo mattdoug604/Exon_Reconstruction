@@ -2,7 +2,7 @@
 
 This program takes a set of aligned reads (BAM format) introns (GFF3 format) format and an index of "translation blocks" from a genome sequence (FASTA format):
 
-Depends on Python3 modules:
+Requires Python 3 and the following modules:
 - BioPython
 - pysam
 
