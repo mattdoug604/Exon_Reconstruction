@@ -1,19 +1,13 @@
-# Reconstruct protein coding exons from RNA-Seq data
+# Identify putative protein-coding exons from a reference genome and a set of splice sites.
 
-This program takes a set of aligned reads (BAM format) introns (GFF3 format) format and an index of "translation blocks" from a genome sequence (FASTA format):
+This program takes a set of aligned reads (BAM format), introns (GFF3 format), and an index of "translation blocks" encoded by the reference genome:
 
 Requires Python 3 and the following modules:
 - BioPython
 - pysam
 
 ## Before running:
-The main script requires that your genome (or scaffold) sequence be indexed first. Run 'reconstruct_exons_index.py' to index your desired genome sequence (in FASTA format). Note: This only has to be done once per genome.
+The main script requires that your genome (or scaffold) sequence be indexed. Run 'exon_trap/generate_index.py' to index your desired genome sequence (in FASTA format). Note: This only has to be done once per genome.
 
 ## To run:
-reconstruct_exons.py -x path/to/index/files -i introns.gff3 -a sorted_alignments.bam
-
-## Future work:
-- Support additional input formats (GTF, BED, SAM, FASTQ)
-- Support additional output formats (GTF, BED)
-- Remove need to pre-generate intron file
-- Reduce memory usage by not storing whole index in memory at once
+exon_trap [options] <prefix/of/index/files> <introns.gff3> <sorted_alignments.bam>

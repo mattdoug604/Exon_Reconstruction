@@ -29,6 +29,10 @@
 #                        slow (if not slower))
 # Define terminal exon boundaries by coverage?
 # Improve mem. usage: use dicts for internal exons, NumPy?
+# Support additional input formats (GTF, BED, SAM, FASTQ)
+# Support additional output formats (GTF, BED)
+# Remove need to pre-generate intron file
+# Reduce memory usage by not storing whole index in memory at once
 
 from collections import defaultdict
 from itertools import chain, product
