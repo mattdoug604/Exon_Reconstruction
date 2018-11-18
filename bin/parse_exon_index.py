@@ -1,18 +1,13 @@
 #!/home2/mattdoug/python3/bin/python3
-# Last updated: 5/2/2018
+# Last updated: 17/11/2018
 # Author: Matt Douglas
 
 from __future__ import print_function
-import argparse, sys
+import argparse, logging, sys
 
-def pprint(*args, **kwargs):
-    level = kwargs.pop('level', {'level':None})
-    if level == 'debug':
-        if DEBUG:
-            print(*args, **kwargs)
-    else:
-        if not QUIET:
-            print(*args, **kwargs)
+log_format = '%(message)s'
+logging.basicConfig(format=log_format, level=logging.INFO)
+log = logging.getLogger(__name__)
 
 
 def parse_index(args):
@@ -20,7 +15,7 @@ def parse_index(args):
     global DEBUG
     QUIET = args.quiet
     DEBUG = args.debug
-    PREFIX = args.prefix
+    PREFIX = args.output
     index_path = args.index
     region = args.region
     index_f = {}
@@ -28,7 +23,7 @@ def parse_index(args):
     start_c = 0
     end_c = 0
 
-    pprint('Parsing reference index...', end='')
+    log.info('Parsing reference index...')
     for i in range(6):
         index = index_path + '.' + str(i+1)
         with open(index, 'r') as f:
@@ -62,8 +57,8 @@ def parse_index(args):
                     start_c += len(pos_list)
                 elif kind == 3:
                     end_c += len(pos_list)
-    pprint('\rParsing reference index... Done!')
-    pprint('  {:,} putative start codons'.format(start_c))
-    pprint('  {:,} stop codons'.format(end_c))
+
+    log.info('  {:,} putative start codons'.format(start_c))
+    log.info('  {:,} stop codons'.format(end_c))
 
     return index_f, index_r

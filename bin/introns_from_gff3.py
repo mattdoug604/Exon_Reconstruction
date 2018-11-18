@@ -7,16 +7,12 @@
 
 import sys
 import pysam
+import logging
 from collections import defaultdict
 
-def pprint(*args, **kwargs):
-    level = kwargs.pop('level', {'level':None})
-    if level == 'debug':
-        if DEBUG:
-            print(*args, **kwargs)
-    else:
-        if not QUIET:
-            print(*args, **kwargs)
+log_format = '%(message)s'
+logging.basicConfig(format=log_format, level=logging.INFO)
+log = logging.getLogger(__name__)
 
 
 def parse_gff3(path, region=None):
@@ -25,7 +21,7 @@ def parse_gff3(path, region=None):
     r_count = 0
     discard = 0
 
-    pprint('Getting intron coordinates...', end='')
+    log.info('\nGetting intron coordinates...')
     with open(path, 'r') as f:
         for line in f:
             if not line or line.startswith('#'):
@@ -55,12 +51,11 @@ def parse_gff3(path, region=None):
                     intron_dict[intron] = count
             else:
                 intron_dict[intron] = count
-    pprint('\rGetting intron coordinates... Done!')
 
-    pprint('  Found {:,} valid introns:'.format(f_count + r_count))
-    pprint('    {:,} on the + strand'.format(f_count))
-    pprint('    {:,} on the - strand'.format(r_count))
-    if discard > 0: pprint('  Discarded {:,} introns without a defined strand'.format(discard))
+    log.info('  Found {:,} valid introns:'.format(f_count + r_count))
+    log.info('    {:,} on the + strand'.format(f_count))
+    log.info('    {:,} on the - strand'.format(r_count))
+    if discard > 0: log.info('  Discarded {:,} introns without a defined strand'.format(discard))
 
     return intron_dict
 
@@ -98,7 +93,7 @@ def get_introns(args):
     global DEBUG
     QUIET = args.quiet
     DEBUG = args.debug
-    PREFIX = args.prefix
+    PREFIX = args.output
     gff_path = args.introns
     region = args.region
     ref_set = None
@@ -112,7 +107,7 @@ def get_introns(args):
 
     # build dictionaries tracking: A) the positions of each splice site on the
     # forward and reverse strands, and B) which introns share a splice site.
-    pprint('Indexing splice sites...', end='', level='debug')
+    log.debug('Indexing splice sites...')
     for intron, count in intron_dict.items():
         chrom, left, right, strand = intron
         if strand == '+':
@@ -142,6 +137,6 @@ def get_introns(args):
             site_r[(chrom, right, strand)].append(intron)
         except KeyError:
             site_r[(chrom, right, strand)] = [intron]
-    pprint('\rIndexing splice sites... Done!', level='debug')
+    log.debug('Indexing splice sites... Done!')
 
     return intron_dict, splice_f, splice_r, site_l, site_r
