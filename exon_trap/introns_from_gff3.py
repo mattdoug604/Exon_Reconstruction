@@ -1,9 +1,4 @@
-#!/home2/mattdoug/bin/python3
-# Last updated: 18/11/2018
-# Author: Matt Douglas
-
-# Purpose: Get the coordinates of each intron from a GFF3 file, and index the
-# positions of each individual splice site.
+#!/usr/bin/python3
 
 import sys
 import logging
@@ -65,7 +60,6 @@ def get_introns(args):
     PREFIX = args.output
     gff_path = args.introns
     region = args.region
-    intron_dict = defaultdict(int)
     splice_f = {}
     splice_r = {}
     site_l = defaultdict(list)

@@ -1,8 +1,5 @@
-#!/home2/mattdoug/python3/bin/python3
-# Last updated: 17/11/2018
-# Author: Matt Douglas
+#!/usr/bin/python3
 
-from __future__ import print_function
 import argparse, logging, sys
 
 log_format = '%(message)s'

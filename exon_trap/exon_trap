@@ -1,38 +1,24 @@
-#!/home2/mattdoug/bin/python3
-# Last updated: 17/11/2018
-# Author: Matt Douglas
+#!/usr/bin/python3
+# 
+# An algorithm implemented in Python to identify putative protein-coding exons
+# from a reference genome and a set of splice sites.
+# Copyright (C) 2018 Matthew Douglas
 #
-# PURPOSE: Reconstruct protein-coding exons from a reference genome and RNA-seq
-# data.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-# UPDATES: Fixed issue with overlapping 5' and 3' splice sites; removed
-# single-exon gene identification; simplified define_genes()
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-# MY NOTES:
-# I:217,489..219,488 - example of resolved 2-exon gene
-# X:2,412,849..2,413,848 - example of incorrect 2-exon gene
-# X:13,397,323..13,397,775 - gene with 2 introns, but only 1 is part of coding exons
-# II:1,889,845..1,890,844 - Internal exon w/ multiple frames makes multiple 5' terminal exons
-# I:506,491..508,490 - False intron retention events?
-# II:8,042,500..8,043,100 - intron retention in 5' terminal exon
-# II:1,918,871-1,919,297 - 1bp "intron" introduces stop codon
-# III:5,547,132-5,547,217 - Missed terminal exon (fixed)
-# X:48,051-48,995 - Two genes, same strand, overlap at the ends - not in frame with each other so the ends get (falsely) discarded as UTRs
-# II:6,490,579-6,491,167 - complex region w/ two "internal" 5' terminal exons
-# I:348,487..353,486 - terminal exon does not have adjacent intron at the end
-# I:64,018..64,412 - error when removing introns from 2 exon gene
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-# TO DO:
-# V:14895887..14895997 - intron retention in terminal exons, how to deal with?
-#                      - Note: tried 'bedtools coverage' to get read depth for
-#                        intron retention events, but it seems to be just as
-#                        slow (if not slower))
-# Define terminal exon boundaries by coverage?
-# Improve mem. usage: use dicts for internal exons, NumPy?
-# Support additional input formats (GTF, BED, SAM, FASTQ)
-# Support additional output formats (GTF, BED)
-# Remove need to pre-generate intron file
-# Reduce memory usage by not storing whole index in memory at once
+# CONTACT INFORMATION:
+# By email at 'mattdoug604@gmail.com'
 
 from collections import defaultdict
 from itertools import chain, product

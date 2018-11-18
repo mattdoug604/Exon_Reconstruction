@@ -1,6 +1,4 @@
-#!/usr/local/bin/python
-#Author: Matt Douglas
-#Last updated: 1/18/2018
+#!/usr/bin/python3
 
 from __future__ import print_function
 import sys
@@ -62,7 +60,7 @@ def find_translation_blocks(fasta):
 if __name__ == '__main__':
     fasta = SeqIO.parse(sys.argv[1], 'fasta')
     stop_dict, start_dict = find_translation_blocks(fasta)
-    
+
     for n, i in enumerate(( (1, 0), (1, 1), (1, 2), (-1, 0), (-1, 1), (-1, 2) )):
         with open('exons.index.'+str(n+1), 'w') as f:
             stops = stop_dict[i]

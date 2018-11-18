@@ -1,6 +1,4 @@
-#!/home2/mattdoug/bin/python3
-# Last updated: 17/11/2018
-# Author: Matt Douglas
+#!/usr/bin/python3
 
 import logging
 import pysam

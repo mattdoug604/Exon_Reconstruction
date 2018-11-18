@@ -1,11 +1,6 @@
-#!/home2/mattdoug/bin/python3
-# Last updated: 17/11/2018
-# Author: Matt Douglas
+#!/usr/bin/python3
 
-import argparse
-import os
-import re
-import logging
+import argparse, logging, os, re
 
 log_format = '%(message)s'
 logging.basicConfig(format=log_format, level=logging.INFO)
