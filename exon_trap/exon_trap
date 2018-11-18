@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# 
+#
 # An algorithm implemented in Python to identify putative protein-coding exons
 # from a reference genome and a set of splice sites.
 # Copyright (C) 2018 Matthew Douglas
@@ -24,12 +24,11 @@ from collections import defaultdict
 from itertools import chain, product
 import argparse, logging, re, sys
 import pysam
-from main import parse_arguments
 from parse_exon_index import parse_index
 from introns_from_gff3 import get_introns
 import intron_retention
 
-VERSION="0.18.2"
+VERSION="0.18.3"
 
 log_format = '%(message)s'
 logging.basicConfig(format=log_format, level=logging.INFO)
@@ -52,15 +51,83 @@ class TranslationBlock(object):
         self.s_sites = [] # start codons
 
     def has_splice_site(self):
-        if any((self.l_sites, self.r_sites)):
-            return True
-        else:
-            return False
+        return any((self.l_sites, self.r_sites))
 
 
 #####################
 # Utility functions #
 #####################
+def parse_region_str(string):
+    """Convert a string in the format: 'I:1000..2000' or 'I_1000_2000' or
+       'I:1000-2000' to a tuple.
+    """
+    if string is None:
+        return None
+
+    t = string.strip().replace(',', '').replace('..', '-')
+    t = re.split(':|-|_', t)
+    seq, start, end = t[0], int(t[1]), int(t[2])
+    region = seq, start, end
+
+    return region
+
+
+def parse_commandline_args():
+    parser = argparse.ArgumentParser(
+        description='Reconstruct exons from RNA-Seq data.')
+    requiredNamed = parser.add_argument_group('required input')
+    # required input ###########################################################
+    requiredNamed.add_argument(
+        dest='index',
+        type=str,
+        help='prefix of the genome index files')
+    requiredNamed.add_argument(
+        dest='introns',
+        type=str,
+        help='intron in GFF3 format')
+    requiredNamed.add_argument(
+        dest='align',
+        type=str,
+        help='aligned reads in SAM or BAM format')
+    # optional input ###########################################################
+    parser.add_argument(
+        '-o',
+        dest='output',
+        type=str,
+        nargs='?',
+        default='exons',
+        help='prefix for the output files')
+    parser.add_argument(
+        '-r',
+        dest='region',
+        type=parse_region_str,
+        nargs='?',
+        help='limit search to genomic coordinates (e.g. I:1000-2000)')
+    parser.add_argument(
+        '-q', '--quiet',
+        action='store_true',
+        default=False,
+        help='do not print any information [incompatible w/ -d]')
+    parser.add_argument(
+        '-d', '--debug',
+        action='store_true',
+        default=False,
+        help='print debug information')
+    ############################################################################
+    args = parser.parse_args()
+
+    if not args.quiet:
+        log.info('Index prefix  = {}'.format(args.index))
+        log.info('Intron file   = {}'.format(args.introns))
+        log.info('Aligned reads = {}'.format(args.align))
+        log.info('Output prefix = {}'.format(args.output))
+        if args.region:
+            log.info('Search region = {}:{:,}-{:,}'.format(*args.region))
+        log.info('')
+
+    return args
+
+
 def percent(val, total):
     if total == 0:
         return '0%'
@@ -71,7 +138,7 @@ def percent(val, total):
 
 
 def merge_dicts(x, y):
-    """Merge to dictionaries (x, y) with the structure: key:[[], [], []] into a
+    """Merge to dicts (x, y) with the structure: key:[[], [], []] into a
     new dictionary (z) with the same structure."""
     z = {}
 
@@ -185,20 +252,20 @@ def output_as_gff3(features, out_path, kind='CDS', mode='w'):
 # Exon Reconstruction #
 #######################
 def get_translation_blocks(index_f, index_r):
-    """Return two dictionaries of TranslationBlock objects. A 'translation block'
-    is defined as the region from the first base of the first codon after a stop
+    """Return two dicts of TranslationBlock objects. A 'translation block' is
+    defined as the region from the first base of the first codon after a stop
     codon to the last base of the next stop codon in the same reading frame.
 
-    INPUT: Two dictionaries corresponding to the indexed positions of all stop
-    codons, putative start codons, and splice sites on the forward and reverse
-    strands of the genome, respectively. Keys in each dict are the chromosomes.
-    The values are 3 lists corresponding to each reading frame:
+    INPUT: Two dicts corresponding to the indexed positions of all stop codons,
+    putative start codons, and splice sites on the forward and reverse strands
+    of the genome, respectively. Keys in each dict are the chromosomes. The
+    values are 3 lists corresponding to each reading frame:
     index_f = { chromsome: [ [frame0], [frame1], [frame2] ] }
     index_r = { chromsome: [ [frame0], [frame1], [frame2] ] }
 
-    RETURN: Two dictionaries (blocks_f, blocks_r), structured the same as the
-    input where each of the three lists (for each key) is a list of
-    TranslationBlocks objects in that reading frame.
+    RETURN: Two dicts (blocks_f, blocks_r), structured the same as the input
+    where each of the three lists (for each key) is a list of TranslationBlock
+    objects in that reading frame.
     """
     sort_by_type = lambda x: sorted(x, key=lambda y: (y[0], y[1]))
     blocks_f = {}
@@ -311,16 +378,16 @@ def get_putative_exons(blocks_f, blocks_r):
     possible internal and terminal exons, which reading frame(s) each use, and
     which intron(s) the exons are adjacent to.
 
-    INPUT: Two dictionaries of TranslationBlock objects on forward and reverse
-    strands of the genome, respectively. Keys for each dict are the chromosomes.
+    INPUT: Two dicts of TranslationBlock objects on forward and reverse strands
+    of the genome, respectively. Keys for each dict are the chromosomes.
     Values are three lists corresponding to each reading frame:
     blocks_f = { chromsome: [ [frame0], [frame1], [frame2] ] }
     blocks_r = { chromsome: [ [frame0], [frame1], [frame2] ] }
 
     RETURN:
-    1) a set of "internal exons" as tuples in the format: (chromosome, start,
+    1) A set of "internal exons" as tuples in the format: (chromosome, start,
        end, strand).
-    2) two dictionaries of terminal exons (one for 5' terminal exons, one for 3'
+    2) Two dicts of terminal exons (one for 5' terminal exons, one for 3'
        terminal) where the key is the adjacent intron(s) and the value is a set
        of exon positions as tuples (chromosome, start, end, strand).
     """
@@ -841,7 +908,7 @@ def define_genes(introns, exon_intrnl, exon_l_term_dict, exon_r_term_dict):
 # Run loop #
 ############
 if __name__ == '__main__':
-    args = parse_arguments()
+    args = parse_commandline_args()
     QUIET = args.quiet
     DEBUG = args.debug
     PREFIX = args.output
