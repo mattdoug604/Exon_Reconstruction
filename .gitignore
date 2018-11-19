@@ -1,2 +1,5 @@
-exon_trap/__pycache__/
+*/__pycache__/
+*/*/__pycache__/
 TEMP*/
+
+*.py[cod]
