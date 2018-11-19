@@ -24,9 +24,9 @@ from collections import defaultdict
 from itertools import chain, product
 import argparse, logging, re, sys
 import pysam
-from parse_exon_index import parse_index
-from introns_from_gff3 import get_introns
-import intron_retention
+from parse_genome_index import parse_index
+from parse_intron_gff import get_introns
+import filter_intron_retention
 
 VERSION="0.18.3"
 
@@ -934,7 +934,7 @@ if __name__ == '__main__':
     # Get all putative internal and terminal positions #
     ####################################################
     exon_intrnl, exon_l_term_dict, exon_r_term_dict = get_putative_exons(blocks_f, blocks_r)
-    exon_intrnl, _ = intron_retention.filter(args, INTRON, exon_intrnl)
+    exon_intrnl, _ = filter_intron_retention.filter(args, INTRON, exon_intrnl)
     check_adjacency(exon_intrnl)
 
     # Try and resolve ambiguous phase for internal exons #

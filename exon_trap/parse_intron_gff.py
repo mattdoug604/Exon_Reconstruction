@@ -1,13 +1,11 @@
 #!/usr/bin/python3
 
-import sys
-import logging
+import logging, sys
 from collections import defaultdict
 
 log_format = '%(message)s'
 logging.basicConfig(format=log_format, level=logging.INFO)
 log = logging.getLogger(__name__)
-
 
 def parse_gff3(path, region=None):
     intron_dict = defaultdict(int)

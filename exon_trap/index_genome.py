@@ -1,11 +1,12 @@
 #!/usr/bin/python3
 
-from __future__ import print_function
 import sys
 from Bio import SeqIO
 from collections import defaultdict
 
-def find_translation_blocks(fasta):
+if __name__ == '__main__':
+    fasta = SeqIO.parse(sys.argv[1], 'fasta')
+    prefix = (sys.argv[2] if len(sys.argv) > 1 else 'exons.index')
     stop_dict = defaultdict(list)
     start_dict = defaultdict(list)
 
@@ -54,15 +55,8 @@ def find_translation_blocks(fasta):
                 stop_dict[(strand, frame)].append(s_dict)
                 start_dict[(strand, frame)].append(m_dict)
 
-    return stop_dict, start_dict
-
-
-if __name__ == '__main__':
-    fasta = SeqIO.parse(sys.argv[1], 'fasta')
-    stop_dict, start_dict = find_translation_blocks(fasta)
-
-    for n, i in enumerate(( (1, 0), (1, 1), (1, 2), (-1, 0), (-1, 1), (-1, 2) )):
-        with open('exons.index.'+str(n+1), 'w') as f:
+    for n, i in enumerate(((1,0),(1,1),(1,2),(-1,0),(-1,1),(-1,2)), 1):
+        with open('{}.{}'.format(prefix, n), 'w') as f:
             stops = stop_dict[i]
             starts = start_dict[i]
             for d in stops:

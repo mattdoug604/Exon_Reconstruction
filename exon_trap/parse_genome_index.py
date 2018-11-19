@@ -1,11 +1,10 @@
 #!/usr/bin/python3
 
-import argparse, logging, sys
+import logging, sys
 
 log_format = '%(message)s'
 logging.basicConfig(format=log_format, level=logging.INFO)
 log = logging.getLogger(__name__)
-
 
 def parse_index(args):
     global QUIET
