@@ -3,8 +3,9 @@
 import logging, sys
 
 log_format = '%(message)s'
-logging.basicConfig(format=log_format, level=logging.INFO)
+logging.basicConfig(format=log_format)
 log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
 
 def parse_index(args):
     global QUIET
@@ -19,19 +20,19 @@ def parse_index(args):
     start_c = 0
     end_c = 0
 
-    log.info('Parsing reference index...')
+    log.info('Parsing genome index...')
     for i in range(6):
         index = index_path + '.' + str(i+1)
         with open(index, 'r') as f:
             for line in f:
-                line = line.strip().split('\t')
-                if len(line) < 3: #if no start/stop codons were found, the 3rd column may be empty
+                if line[0] == '#' or len(line) < 3: #if no start/stop codons were found, the 3rd column may be empty
                     continue
-                chrom, kind, pos_list = line
-                chrom = str(chrom)
+                line = line.strip().split('\t')
+                seqid, kind, pos_list = line
+                seqid = str(seqid)
                 kind  = int(kind)
                 # if the feature is outside the specified region, skip it
-                if region is not None and chrom != region[0]:
+                if region is not None and seqid != region[0]:
                     continue
                 pos_list = list(map(int, pos_list.split(',')))
                 if region is not None:
@@ -44,10 +45,10 @@ def parse_index(args):
                 d = [index_f if i < 3 else index_r][0] # 1 == "+", -1 == "-"
                 frame = [i-3 if i >= 3 else i][0]
                 try:
-                    d[chrom][frame] += [(x, kind) for x in pos_list]
+                    d[seqid][frame] += [(x, kind) for x in pos_list]
                 except KeyError:
-                    d[chrom] = [ [], [], [] ]
-                    d[chrom][frame] += [(x, kind) for x in pos_list]
+                    d[seqid] = [ [], [], [] ]
+                    d[seqid][frame] += [(x, kind) for x in pos_list]
                 # update the counters
                 if kind == 0:
                     start_c += len(pos_list)
